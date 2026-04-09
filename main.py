@@ -11,5 +11,5 @@ async def startup():
         print('Db connected')
         BaseModel.metadata.create_all(bind=engine)
         app.include_router(controllers.file_router, prefix="/file")
-    except:
-        print("Error connecting db")
+    except Exception as e:
+        print(e)

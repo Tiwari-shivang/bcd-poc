@@ -8,5 +8,6 @@ requests
 qdrant-client
 python-jose[cryptography]
 passlib[bcrypt]
-cloudinary
 python-multipart
+pgvector
+openai

@@ -1,1 +1,1 @@
-from .cloudinary_config import cloudinary as cloud_client;
+from .openai_config import OpenAIClient
