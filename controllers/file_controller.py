@@ -26,6 +26,7 @@ async def upload_file(key: str=Form(...), description:str=Form(...) ,file: Uploa
         data.data=embeddings.data[0].embedding
         data.description=description
         data.key=key
+        data.content=chunk
         db.add(data)
         db.commit()
         response = db.refresh(data)

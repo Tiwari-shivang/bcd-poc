@@ -8,5 +8,6 @@ class EmbeddingModel(BaseModel):
     data=Column(Vector(1536), nullable=False)
     description=Column(TEXT, nullable=False)
     key=Column(TEXT, nullable=False)
+    content=Column(TEXT, nullable=True)
     created_at=Column(TIMESTAMP(timezone=True), server_default=sa_text('now()'), nullable=False)
     updated_at=Column(TIMESTAMP(timezone=True), server_default=sa_text('now()'), nullable=False)
