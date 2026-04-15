@@ -12,7 +12,10 @@ class AgentService:
         for row, distance in results:
             context.append(row.content)
         generated_query = helpers.llm_response(context=context, query_message=request.message)
-        response = db.execute(text(generated_query.response))
+        valid_query = generated_query.response.strip()
+        if valid_query == "INVALID_QUERY":
+            return 'No search result for this'
+        response = db.execute(text(valid_query))
         raw_data = response.mappings().all()
         llm_response = helpers.generate_normalized_llm_response(raw_data, request.message)
         return llm_response

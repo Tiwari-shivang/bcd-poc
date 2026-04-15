@@ -3,6 +3,7 @@ from config import OpenAIClient
 import models
 from sqlalchemy.orm import Session
 import DTOs
+import helpers
 
 class FileService:
     async def upload_file(self, file: UploadFile, key: str, description: str, db: Session):
@@ -13,10 +14,7 @@ class FileService:
             chunk = "\n".join(content[c:c+500])
             chunks.append(chunk)
         for chunk in chunks:
-            vector_data = OpenAIClient.embeddings.create(
-                model="text-embedding-3-small",
-                input=chunk
-            )
+            vector_data = await helpers.generate_embeddings(chunk)
             data = models.EmbeddingModel()
             data.data = vector_data.data[0].embedding
             data.content = chunk
