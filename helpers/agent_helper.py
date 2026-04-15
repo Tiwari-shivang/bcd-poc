@@ -1,51 +1,49 @@
 import config
 import DTOs
+from models import EmbeddingModel
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+from helpers import prompts
 
 ai_client=config.OpenAIClient
 
-def get_prompt(context, query_message: str):
-    prompt=f"""
-You are an expert SQL query generator.
-
-Your task is to generate a correct, optimized, and executable SQL query based strictly on the provided database schema context and the user’s question.
-
-### Rules:
-
-* ONLY return the SQL query.
-* DO NOT include any explanation, comments, markdown, or extra text.
-* DO NOT wrap the query in ``` or any formatting.
-* The output must be plain SQL text only.
-* Ensure the query is syntactically correct and production-ready.
-* Use only the tables and columns provided in the schema context.
-* Do NOT assume any schema outside the given context.
-* Prefer explicit column selection instead of SELECT * unless necessary.
-* Handle joins, filters, aggregations, and conditions correctly.
-* If the question cannot be answered using the given schema, return exactly:
-  INVALID_QUERY
-
-### Schema Context:
-
-{context}
-
-### User Question:
-
-{query_message}
-
-### Output:
-
-SQL query only.
-
-"""
-    return prompt
+def sanitize_generated_query(query: str):
+    sanitized_query = query.replace("\n", " ").replace("\t", " ")
+    return sanitized_query
 
 def llm_response(context, query_message: str):
     response = ai_client.chat.completions.create(
         model="gpt-4o-mini",
         messages=[
             {"role":"system","content":""},
-            {"role":"user", "content": get_prompt(context, query_message)}
+            {"role":"user", "content": prompts.get_query_prompt(context, query_message)}
         ],
         temperature=0.2
     )
-    response = DTOs.AgentChatResponse(response=response.choices[0].message.content)
-    return response
+    query = DTOs.AgentChatResponse(response=sanitize_generated_query(response.choices[0].message.content))
+    return query
+
+async def generate_embeddings(content: str):
+    embeddings = ai_client.embeddings.create(
+        input=content,
+        model="text-embedding-3-small"
+    )
+    return embeddings
+
+def search_data_embeddings(query_embedding, db: Session):
+    distance_arr = EmbeddingModel.data.cosine_distance(query_embedding)
+    query = (
+        select(EmbeddingModel, distance_arr.label("distance")).order_by(distance_arr.asc()).limit(5)
+    )
+    context = db.execute(query).all()
+    return context
+
+def generate_normalized_llm_response(data, user_query):
+    response = ai_client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[
+            {"role": "system", "content": ""},
+            {"role": "user", "content": prompts.get_natural_lang_prmpt(user_query, data)}
+        ]
+    )
+    return response.choices[0].message.content
