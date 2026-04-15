@@ -1,7 +1,6 @@
 from fastapi import APIRouter, Depends
 import config
 import DTOs
-from sqlalchemy import select
 from database import get_db
 from sqlalchemy.orm import Session
 import services
