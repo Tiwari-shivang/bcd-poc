@@ -28,3 +28,5 @@ class AgreementModel(BaseModel):
     owner = relationship("OwnerModel", foreign_keys=[owner_id], back_populates="owned_agreements")
     agreement_vp_owner = relationship("OwnerModel", foreign_keys=[agreement_vp], back_populates="vp_agreements")
     country_details = relationship("CountryDetailsModel", foreign_keys="CountryDetailsModel.agreement_id", back_populates="agreement")
+    annual_volumes = relationship("AnnualVolModel", foreign_keys="AnnualVolModel.agreement_id", back_populates="agreement")
+    program_solutions = relationship("ProgramSolModel", foreign_keys="ProgramSolModel.agreement_id", back_populates="agreement")

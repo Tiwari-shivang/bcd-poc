@@ -57,3 +57,4 @@ class OwnerModel(BaseModel):
     global_executive_sponsor_accounts = relationship("AccountModel", foreign_keys="AccountModel.global_executive_sponsor", back_populates="global_executive_sponsor_owner")
     owned_agreements = relationship("AgreementModel", foreign_keys="AgreementModel.owner_id", back_populates="owner")
     vp_agreements = relationship("AgreementModel", foreign_keys="AgreementModel.agreement_vp", back_populates="agreement_vp_owner")
+    tool_services = relationship("ToolServiceModel", foreign_keys="ToolServiceModel.product_marketer", back_populates="marketer")

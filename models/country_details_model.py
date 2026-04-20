@@ -20,3 +20,5 @@ class CountryDetailsModel(BaseModel):
     ticket_country = Column(TEXT)
 
     agreement = relationship("AgreementModel", foreign_keys=[agreement_id], back_populates="country_details")
+    annual_volumes = relationship("AnnualVolModel", foreign_keys="AnnualVolModel.country_id", back_populates="country")
+    program_solutions = relationship("ProgramSolModel", foreign_keys="ProgramSolModel.country_id", back_populates="country")
