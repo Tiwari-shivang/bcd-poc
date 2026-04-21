@@ -1,7 +1,15 @@
 from database import BaseModel
-from sqlalchemy import Column, ForeignKey, String, TEXT
+from sqlalchemy import Column, Enum, ForeignKey, String, TEXT
 from sqlalchemy.orm import relationship
 import uuid
+
+COUNTRY_STATUS_ENUM = (
+    "Implemented",
+    "In Scope",
+    "De-Implemented",
+    "Pending De-implementation",
+    "In Vetting",
+)
 
 
 class CountryDetailsModel(BaseModel):
@@ -13,8 +21,7 @@ class CountryDetailsModel(BaseModel):
     name = Column(TEXT)
     region = Column(TEXT)
 
-    agreement_status = Column(TEXT)
-    country_status = Column(TEXT)
+    country_status = Column(Enum(*COUNTRY_STATUS_ENUM, name="country_status_enum"))
 
     booking_country = Column(TEXT)
     ticket_country = Column(TEXT)

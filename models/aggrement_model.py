@@ -1,7 +1,30 @@
 from database import BaseModel
-from sqlalchemy import Column, Date, ForeignKey, String, TEXT, VARCHAR
+from sqlalchemy import Column, Date, Enum, ForeignKey, String, TEXT, VARCHAR
 from sqlalchemy.orm import relationship
 import uuid
+
+CONTRACT_TYPE_ENUM = (
+    "Single Country",
+    "Global",
+    "National Agreement",
+    "Multinational",
+    "Regional",
+    "Regional Agreement",
+    "Local Agreement",
+)
+AGREEMENT_STATUS_ENUM = (
+    "Closed Consolidated",
+    "Lost",
+    "Pending Contract",
+    "Signed and Finalized",
+    "Servicing Without a Contract",
+)
+RENEWAL_TERMS_ENUM = (
+    "N/A",
+    "By Agreement Only",
+    "Automatic Renewal",
+    "Evergreen",
+)
 
 
 class AgreementModel(BaseModel):
@@ -12,9 +35,9 @@ class AgreementModel(BaseModel):
     name = Column(VARCHAR(100))
 
     account_id = Column(String(36), ForeignKey("accounts.id", name="fk_agreement_account"))
-    contact_type = Column(TEXT)
+    contract_type = Column(Enum(*CONTRACT_TYPE_ENUM, name="contract_type_enum"))
     region = Column(TEXT)
-    status = Column(TEXT)
+    status = Column(Enum(*AGREEMENT_STATUS_ENUM, name="agreement_status_enum"))
 
     effective_date = Column(Date)
     agreement_end_date = Column(Date)
@@ -22,7 +45,7 @@ class AgreementModel(BaseModel):
     agreement_vp = Column(String(36), ForeignKey("owners.id", name="fk_agreement_vp"))
     owner_id = Column(String(36), ForeignKey("owners.id", name="fk_agreement_owner"))
 
-    renewal_terms = Column(TEXT)
+    renewal_terms = Column(Enum(*RENEWAL_TERMS_ENUM, name="renewal_terms_enum"))
 
     account = relationship("AccountModel", foreign_keys=[account_id], back_populates="agreements")
     owner = relationship("OwnerModel", foreign_keys=[owner_id], back_populates="owned_agreements")

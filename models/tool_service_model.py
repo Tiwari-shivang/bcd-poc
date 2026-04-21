@@ -1,7 +1,10 @@
 from database import BaseModel
-from sqlalchemy import CHAR, Column, ForeignKey, TEXT
+from sqlalchemy import CHAR, Column, Enum, ForeignKey, TEXT
 from sqlalchemy.orm import relationship
 import uuid
+
+TOOL_STATUS_ENUM = ("Active", "Inactive", "In Development")
+AVAILABILITY_LOC_ENUM = ("Ticketing", "Booking", "Customer")
 
 
 class ToolServiceModel(BaseModel):
@@ -14,8 +17,8 @@ class ToolServiceModel(BaseModel):
     product_category = Column(TEXT)
     name = Column(TEXT)
 
-    tool_status = Column(TEXT)
-    availability_loc = Column(TEXT)
+    tool_status = Column(Enum(*TOOL_STATUS_ENUM, name="tool_service_status_enum"))
+    availability_loc = Column(Enum(*AVAILABILITY_LOC_ENUM, name="availability_loc_enum"))
 
     product_type = Column(TEXT)
     description = Column(TEXT)

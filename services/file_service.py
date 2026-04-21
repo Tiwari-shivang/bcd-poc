@@ -11,8 +11,9 @@ class FileService:
         content = file_content.decode("utf-8")
         chunks=[]
         for c in range(0, len(content), 500):
-            chunk = "\n".join(content[c:c+500])
+            chunk = content[c:c+500]
             chunks.append(chunk)
+        
         for chunk in chunks:
             vector_data = await helpers.generate_embeddings(chunk)
             data = models.EmbeddingModel()

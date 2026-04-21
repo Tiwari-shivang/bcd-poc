@@ -1,8 +1,9 @@
 from database import BaseModel
-from sqlalchemy import Boolean, Column, Date, ForeignKey, Integer, TEXT, TIMESTAMP, VARCHAR, String, text as sa_text
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import Boolean, CHAR, Column, Date, Enum, ForeignKey, Integer, TEXT, TIMESTAMP, VARCHAR, String, text as sa_text
 from sqlalchemy.orm import relationship
 import uuid
+
+CLIENT_STATUS_ENUM = ("Client", "Prospect", "N/A")
 
 
 class AccountModel(BaseModel):
@@ -19,27 +20,27 @@ class AccountModel(BaseModel):
     phone = Column(VARCHAR(10))
     fax = Column(TEXT)
 
-    owner_id = Column(UUID(as_uuid=True), ForeignKey("owners.id", name="fk_accounts_owner"))
+    owner_id = Column(String(36), ForeignKey("owners.id", name="fk_accounts_owner"))
     created_at = Column(TIMESTAMP)
     last_activity = Column(Date)
 
-    national_svp = Column(UUID(as_uuid=True), ForeignKey("owners.id", name="fk_accounts_national_svp"))
-    hotel_sol_business_owner = Column(UUID(as_uuid=True), ForeignKey("owners.id", name="fk_accounts_hotel_sol"))
-    advito_business_owner = Column(UUID(as_uuid=True), ForeignKey("owners.id", name="fk_accounts_advito"))
-    me_business_owner = Column(UUID(as_uuid=True), ForeignKey("owners.id", name="fk_accounts_me_owner"))
-    bcd_business_owner = Column(UUID(as_uuid=True), ForeignKey("owners.id", name="fk_accounts_bcd_owner"))
+    national_svp = Column(CHAR(36), ForeignKey("owners.id", name="fk_accounts_national_svp"))
+    hotel_sol_business_owner = Column(CHAR(36), ForeignKey("owners.id", name="fk_accounts_hotel_sol"))
+    advito_business_owner = Column(CHAR(36), ForeignKey("owners.id", name="fk_accounts_advito"))
+    me_business_owner = Column(CHAR(36), ForeignKey("owners.id", name="fk_accounts_me_owner"))
+    bcd_business_owner = Column(CHAR(36), ForeignKey("owners.id", name="fk_accounts_bcd_owner"))
 
-    latam_ram = Column(UUID(as_uuid=True), ForeignKey("owners.id", name="fk_accounts_latam_ram"))
-    emea_ram = Column(UUID(as_uuid=True), ForeignKey("owners.id", name="fk_accounts_emea_ram"))
-    apac_ram = Column(UUID(as_uuid=True), ForeignKey("owners.id", name="fk_accounts_apac_ram"))
-    na_ram = Column(UUID(as_uuid=True), ForeignKey("owners.id", name="fk_accounts_na_ram"))
+    latam_ram = Column(CHAR(36), ForeignKey("owners.id", name="fk_accounts_latam_ram"))
+    emea_ram = Column(CHAR(36), ForeignKey("owners.id", name="fk_accounts_emea_ram"))
+    apac_ram = Column(CHAR(36), ForeignKey("owners.id", name="fk_accounts_apac_ram"))
+    na_ram = Column(CHAR(36), ForeignKey("owners.id", name="fk_accounts_na_ram"))
 
-    global_account_manager = Column(UUID(as_uuid=True), ForeignKey("owners.id", name="fk_accounts_gam"))
-    global_executive_sponsor = Column(UUID(as_uuid=True), ForeignKey("owners.id", name="fk_accounts_ges"))
+    global_account_manager = Column(CHAR(36), ForeignKey("owners.id", name="fk_accounts_gam"))
+    global_executive_sponsor = Column(CHAR(36), ForeignKey("owners.id", name="fk_accounts_ges"))
 
-    advito_client_status = Column(TEXT)
-    me_client_status = Column(TEXT)
-    bcd_client_status = Column(TEXT)
+    advito_client_status = Column(Enum(*CLIENT_STATUS_ENUM, name="advito_client_status_enum"))
+    me_client_status = Column(Enum(*CLIENT_STATUS_ENUM, name="me_client_status_enum"))
+    bcd_client_status = Column(Enum(*CLIENT_STATUS_ENUM, name="bcd_client_status_enum"))
 
     opportunity_count = Column(Integer)
     industry = Column(TEXT)

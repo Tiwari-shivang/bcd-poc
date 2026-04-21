@@ -15,6 +15,7 @@ class AgentService:
         valid_query = generated_query.response.strip()
         if valid_query == "INVALID_QUERY":
             return 'No search result for this'
+        print("query: ",valid_query)
         response = db.execute(text(valid_query))
         raw_data = response.mappings().all()
         llm_response = helpers.generate_normalized_llm_response(raw_data, request.message)

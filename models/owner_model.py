@@ -1,8 +1,9 @@
 from database import BaseModel
-from sqlalchemy import Boolean, Column, Numeric, TEXT, TIMESTAMP, String, VARCHAR, text as sa_text
-from sqlalchemy.dialects.postgresql import ENUM, UUID
+from sqlalchemy import Boolean, Column, Enum, Numeric, TEXT, TIMESTAMP, String, VARCHAR, text as sa_text
 from sqlalchemy.orm import relationship
 import uuid
+
+COMPANY_ENUM = ("BCD Travel", "Advito", "EMEA")
 
 
 class OwnerModel(BaseModel):
@@ -21,7 +22,7 @@ class OwnerModel(BaseModel):
     profile = Column(TEXT)
     username = Column(TEXT, unique=True)
 
-    company = Column(TEXT, nullable=False)
+    company = Column(Enum(*COMPANY_ENUM, name="company_enum"), nullable=False)
     time_zone = Column(TIMESTAMP(timezone=True))
 
     division = Column(TEXT)
@@ -35,7 +36,7 @@ class OwnerModel(BaseModel):
 
     cost_center = Column(Numeric)
 
-    user_division = Column(TEXT, nullable=False)
+    user_division = Column(Enum(*COMPANY_ENUM, name="user_division_enum"), nullable=False)
     ownership_type = Column(TEXT)
 
     me_sales_goal_usd = Column(Numeric)

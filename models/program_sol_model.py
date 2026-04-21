@@ -1,7 +1,15 @@
 from database import BaseModel
-from sqlalchemy import CHAR, Column, Date, ForeignKey, TEXT
+from sqlalchemy import CHAR, Column, Date, Enum, ForeignKey, TEXT
 from sqlalchemy.orm import relationship
 import uuid
+
+PROGRAM_SOL_STATUS_ENUM = (
+    "Implemented",
+    "De-Implemented",
+    "In Scope",
+    "In Vetting",
+    "Never Implemented",
+)
 
 
 class ProgramSolModel(BaseModel):
@@ -14,7 +22,7 @@ class ProgramSolModel(BaseModel):
     country_id = Column(CHAR(36), ForeignKey("countries.id", name="fk_program_sol_country"))
     product_type = Column(TEXT)
 
-    status = Column(TEXT)
+    status = Column(Enum(*PROGRAM_SOL_STATUS_ENUM, name="program_sol_status_enum"))
     trial_exp_date = Column(Date)
 
     tool_service_id = Column(CHAR(36), ForeignKey("tool_service.id", name="fk_program_sol_tool_service"))
