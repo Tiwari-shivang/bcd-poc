@@ -36,7 +36,7 @@ class OwnerModel(BaseModel):
 
     cost_center = Column(Numeric)
 
-    user_division = Column(Enum(*COMPANY_ENUM, name="user_division_enum"), nullable=False)
+    user_division = Column(TEXT)
     ownership_type = Column(TEXT)
 
     me_sales_goal_usd = Column(Numeric)

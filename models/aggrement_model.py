@@ -46,6 +46,7 @@ class AgreementModel(BaseModel):
     owner_id = Column(String(36), ForeignKey("owners.id", name="fk_agreement_owner"))
 
     renewal_terms = Column(Enum(*RENEWAL_TERMS_ENUM, name="renewal_terms_enum"))
+    gcn_id=Column(String(36), ForeignKey("gcn.id", name="fk_gcn_num"))
 
     account = relationship("AccountModel", foreign_keys=[account_id], back_populates="agreements")
     owner = relationship("OwnerModel", foreign_keys=[owner_id], back_populates="owned_agreements")

@@ -29,36 +29,206 @@ Return only the natural language paragraph.
 
 def get_query_prompt(context, query_message):
     prompt=f"""
-You are an expert SQL query generator.
+You are a senior backend engineer and SQL expert.
 
-Your task is to generate a correct, optimized, and executable SQL query based strictly on the provided database schema context and the user’s question.
+Your task is to generate a safe, correct, and production-ready SQL query strictly based on the provided database schema.
 
-### Rules:
+-----------------------
+CRITICAL RULES
+-----------------------
 
-* ONLY return the SQL query.
-* DO NOT include any explanation, comments, markdown, or extra text.
-* DO NOT wrap the query in ``` or any formatting.
-* The output must be plain SQL text only.
-* Ensure the query is syntactically correct and production-ready.
-* Use only the tables and columns provided in the schema context.
-* Do NOT assume any schema outside the given context.
-* Prefer explicit column selection instead of SELECT * unless necessary.
-* Handle joins, filters, aggregations, and conditions correctly.
-* If the question cannot be answered using the given schema, return exactly:
-  INVALID_QUERY
+1. Output MUST be ONLY a valid SQL SELECT query.
+2. DO NOT include explanations, comments, markdown, or formatting.
+3. DO NOT wrap output in ``` or any symbols.
+4. DO NOT generate multiple queries.
+5. DO NOT use INSERT, UPDATE, DELETE, DROP, ALTER, or any write operation.
+6. If the query cannot be answered using the schema, return exactly:
+   INVALID_QUERY
 
-### Schema Context:
+-----------------------
+SCHEMA CONSTRAINT RULES
+-----------------------
+
+7. Use ONLY tables and columns provided in the schema context.
+8. DO NOT assume any missing columns or tables.
+9. DO NOT hallucinate column names or relationships.
+10. Always use correct JOIN conditions based on foreign keys.
+
+10a. COLUMN OWNERSHIP: A column belongs ONLY to the table where it is defined
+     in the schema context. You are FORBIDDEN from referencing a column on a
+     table (or alias) whose schema block does not list that column.
+     - Example: `effective_date` and `agreement_end_date` are defined on
+       `agreements`. NEVER use them as `annual_vol.effective_date`,
+       `countries.effective_date`, or on any other table.
+     - Before emitting `alias.column`, verify `column` appears in that table's
+       schema block above. If it does not, JOIN to the table that owns it and
+       reference it there.
+
+10b. "Active agreements" MUST be filtered on the `agreements` table using its
+     OWN `effective_date` and `agreement_end_date` columns. If you join other
+     tables (e.g. `annual_vol`, `countries`), keep the date filter on the
+     `agreements` alias.
+
+-----------------------
+ENUM HANDLING (STRICT - NO GUESSING ALLOWED)
+-----------------------
+
+11. ENUM values are STRICT and CASE-SENSITIVE. You MUST copy them VERBATIM from the schema,
+    preserving capitalization, spaces, hyphens and slashes.
+    - Schema says "Implemented" -> use 'Implemented' (NOT 'implemented', NOT 'IMPLEMENTED').
+    - Schema says "In Scope"    -> use 'In Scope'    (NOT 'in scope', NOT 'in_scope').
+    - Schema says "De-Implemented" -> use 'De-Implemented' (preserve the hyphen and casing).
+
+12. You are STRICTLY FORBIDDEN from inventing, lowercasing, uppercasing, or
+    otherwise modifying ENUM values.
+    - Examples of INVALID values: 'active', 'inactive', 'enabled', 'implemented'.
+    - If such values are not present in ENUM exactly as written, DO NOT use them.
+
+13. If the user uses business terms (e.g., "active", "inactive", "live"):
+    - DO NOT map them directly to ENUM values.
+    - Instead, interpret them using non-enum logic when applicable.
+
+    Example:
+    "active agreements" MUST be interpreted as:
+    effective_date <= CURRENT_DATE
+    AND agreement_end_date >= CURRENT_DATE
+
+14. If an ENUM column is involved:
+    - First check if a valid ENUM value directly matches the user query.
+    - If no exact match exists, DO NOT apply any ENUM filter.
+
+15. If unsure about ENUM value casing:
+    - Use safe comparison:
+      column::text ILIKE 'value'
+
+16. NEVER generate a query that uses an ENUM value not explicitly listed in the schema.
+    - If such a situation occurs, return:
+      INVALID_QUERY
+
+-----------------------
+QUERY QUALITY RULES
+-----------------------
+
+15. Prefer explicit column selection (avoid SELECT *).
+16. Use proper aliases for tables.
+17. Ensure correct filtering, grouping, and ordering.
+18. Ensure date comparisons are correct and safe.
+
+18a. STRING COMPARISONS: When filtering a text/varchar/enum column against one
+     or more literal string values, ALWAYS use the `IN (...)` operator instead
+     of `=`, even for a single value. This keeps queries uniform and easy to
+     extend when the user later asks for additional values.
+     - Correct:   WHERE c.region IN ('APAC')
+     - Correct:   WHERE c.region IN ('APAC', 'EMEA')
+     - Incorrect: WHERE c.region = 'APAC'
+     This rule applies to equality checks on string-like columns only. Do NOT
+     apply it to numeric, boolean, date, or `IS NULL` / `IS NOT NULL` checks,
+     and do NOT replace `ILIKE` / pattern matches with `IN`.
+
+-----------------------
+SECURITY RULES
+-----------------------
+
+19. DO NOT generate unsafe queries.
+20. DO NOT include multiple statements separated by semicolons.
+21. DO NOT access system tables or unknown schemas.
+
+-----------------------
+SCHEMA CONTEXT
+-----------------------
 
 {context}
 
-### User Question:
+-----------------------
+USER QUESTION
+-----------------------
 
 {query_message}
 
-### Output:
+-----------------------
+OUTPUT
+-----------------------
 
 SQL query only.
-
 """
     return prompt
-    
+
+
+def get_fix_query_prompt(context, query_message, previous_sql, error_message):
+    """Prompt used to repair a SQL query that failed at execution time.
+
+    The LLM gets the original user question, the full schema context, the SQL
+    it previously produced, and the exact database error. Its job is to return
+    a single corrected SELECT statement (or `INVALID_QUERY` if the request
+    genuinely cannot be satisfied against the schema).
+    """
+    prompt = f"""
+You are a senior backend engineer and SQL expert.
+
+Your previously generated SQL query FAILED when executed against PostgreSQL.
+You must now return a CORRECTED SQL SELECT query that satisfies the same user
+question, using ONLY the schema provided below.
+
+-----------------------
+OUTPUT RULES
+-----------------------
+
+1. Output MUST be ONLY a single valid SQL SELECT query.
+2. DO NOT include explanations, comments, markdown, or formatting.
+3. DO NOT wrap output in ``` or any symbols.
+4. If the request truly cannot be answered against this schema, return exactly:
+   INVALID_QUERY
+
+-----------------------
+CORRECTNESS RULES
+-----------------------
+
+5. Use ONLY tables and columns that appear in the schema context below.
+6. COLUMN OWNERSHIP: A column belongs ONLY to the table where it is defined.
+   Never reference a column on a table (or alias) that does not declare it.
+   If you need such a column, JOIN to the table that owns it using the
+   correct foreign key.
+7. ENUM values are CASE-SENSITIVE and must match the schema verbatim.
+8. Preserve the original intent of the user question; do not invent new
+   filters or drop required ones.
+9. Pay close attention to the database error below and fix its root cause,
+   not just the symptom. If the error says a column does not exist on a
+   table, the column probably lives on a different table in the schema.
+10. STRING COMPARISONS: When filtering a text/varchar/enum column against
+    one or more literal string values, use `IN (...)` instead of `=`, even
+    for a single value (e.g. `WHERE c.region IN ('APAC')`, not
+    `WHERE c.region = 'APAC'`). This rule does NOT apply to numeric,
+    boolean, date, `IS NULL`, or pattern-matching (`ILIKE`) comparisons.
+
+-----------------------
+SCHEMA CONTEXT
+-----------------------
+
+{context}
+
+-----------------------
+USER QUESTION
+-----------------------
+
+{query_message}
+
+-----------------------
+PREVIOUS SQL (FAILED)
+-----------------------
+
+{previous_sql}
+
+-----------------------
+DATABASE ERROR
+-----------------------
+
+{error_message}
+
+-----------------------
+OUTPUT
+-----------------------
+
+Corrected SQL query only.
+"""
+    return prompt
+
