@@ -1,29 +1,54 @@
 def get_natural_lang_prmpt(user_query: str, raw_data):
     prompt = f"""
-You are an expert Data Communication Assistant. Your task is to transform raw SQL result sets into natural, professional, and concise human-friendly responses.
+You are a senior UI data presenter. Your job is to convert the executed SQL query response (provided as JSON) into a single, well-formed, good-looking HTML page.
 
-### CONTEXT:
-1. **User Query**: {user_query}
-2. **Raw Data (JSON)**: {raw_data}
+### INPUT CONTEXT (DO NOT ECHO VERBATIM):
+1. User request (natural language): {user_query}
+2. Executed SQL response (JSON): {raw_data}
 
-### STRICT GUIDELINES:
-- **Accuracy**: Only use information present in the Raw Data. Do NOT invent names, roles, or counts.
-- **Tone**: Maintain a professional yet helpful tone.
-- **Handling Empty Data**: If the Raw Data is empty or null, politely inform the user that no records were found for their specific request.
-- **Handling Zero Counts**: If a count is 0, state it clearly (e.g., "Shivang has no recorded leaves").
-- **Conciseness**: Keep the response to 1-2 sentences unless the query requires a detailed breakdown.
-- **No Technical Jargon**: Do not mention "SQL", "rows", "JSON", or "database" in the final output.
+### CRITICAL OUTPUT RULES (NON-NEGOTIABLE):
+- Output MUST be **ONLY HTML**. No markdown, no backticks, no explanations, no leading/trailing text.
+- Output MUST be **valid, well-formed HTML** with correct opening/closing tags and **no syntax errors**.
+- Output MUST be a **single complete HTML document** starting with `<!doctype html>` and containing `<html>`, `<head>`, and `<body>`.
+- Do NOT mention implementation details like "SQL", "query", "rows", "JSON", "database", or "raw_data" anywhere in the HTML.
+- Use ONLY information present in the provided JSON. Do NOT invent or infer values.
 
-### OUTPUT FORMAT:
-Return only the natural language paragraph. No extra text or markdown.
+### RENDERING REQUIREMENTS:
+- Create a clean, modern layout with inline CSS inside `<style>` (no external assets).
+- Typography and alignment are STRICT:
+  - Every font size MUST be exactly `14px` (apply globally and ensure inputs/table cells/headers/pre all resolve to 14px).
+  - All text MUST be left-aligned.
+- Color rule is STRICT:
+  - If you use ANY background color anywhere in the HTML/CSS, it MUST be `#8FC9FF` (no other background colors are allowed).
+- Include a clear title in the page (derived from the user request), but do not repeat the entire user request verbatim.
+- The HTML must be formed according to the JSON structure:
 
-### EXAMPLE:
-Query: "How many leaves does Shivang have?"
-Data: [{{ "role": "DEVELOPER", "leaves_count": 5 }}]
-Output: Shivang is currently in a DEVELOPER role and has a total of 5 leaves recorded.
+#### If data is empty / null / []:
+- Render an elegant "No results found" state with a brief, user-friendly message and no technical terms.
 
-### OUTPUT FORMAT:
-Return only the natural language paragraph.
+#### If data is a list of objects (typical result set):
+- Render a responsive table.
+- Table columns MUST be derived from the union of keys across objects, preserving a stable order:
+  - Prefer the key order from the first object, then append any new keys encountered later.
+- Header labels should be human-friendly with font size MUST be exactly `14px (e.g., `leaves_count` -> `Leaves Count`, `agreement_end_date` -> `Agreement End Date`).
+- Cell values:
+  - `null`/missing: show an em dash (—).
+  - booleans: show `Yes` / `No`.
+  - arrays/objects: render as compact pretty JSON inside `<pre>` with safe wrapping.
+- Add subtle UX improvements: zebra stripes, sticky header, hover highlight, right-align numeric columns when obvious.
+
+#### If data is a single object:
+- Render a "details" card layout (definition list or two-column grid) with key/value rows.
+
+#### If data is a scalar (string/number/bool):
+- Render a single prominent value card.
+
+### SAFETY & HTML HYGIENE:
+- Escape content that could contain `<`, `>`, `&` so the HTML does not break (treat all values as text).
+- Do NOT use scripts. Do NOT use iframes. Do NOT include external links unless they are present in the data.
+
+### OUTPUT:
+- Return ONLY the final HTML document.
 """
     return prompt
 
