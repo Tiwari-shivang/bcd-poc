@@ -157,21 +157,21 @@ Bad example (do NOT do this):
        respective fields as shown.</p>
   </section>
 
-### UUID / ID-LIKE VALUES (DEFENSIVE SAFETY NET):
-Sometimes a value in the JSON looks like a UUID
-(e.g. `e96b997e-e845-44ad-8895-03c184f935b3`) or another opaque internal
-identifier. These are useless to a human reader.
+### UUID / ID-LIKE VALUES (DEFENSIVE SAFETY NET — CHAT VIEW):
+Sometimes JSON values expose internal surrogate identifiers that are meaningless in chat:
 
-- If a column is named `id`, ends with `_id`, or every value in that
-  column matches the standard UUID pattern (8-4-4-4-12 hex digits), HIDE
-  that column entirely from the rendered table or details card. Do NOT
-  show it.
-- Never mention these hidden columns in the summary paragraph.
-- The visible columns must consist only of human-readable values
-  (names, statuses, dates, numbers, booleans, enums, regions, etc.).
-- If hiding identifier columns leaves zero visible columns to show,
-  fall back to a one-line message such as
-  "Found N matching records." inside the data section.
+- Columns named `id`, ending with `_id`, or resembling bridge keys (`sf_id`, `case_safe_id` when opaque)
+  or standard UUID shapes (8-4-4-4-12 hex). **Never render these** unless the user explicitly asked for IDs.
+
+- Very short alphanumeric **placeholder / surrogate geography codes**—single letter + digits (e.g. `c1`, `t2`),
+  or ≤4-character opaque tokens in columns whose header clearly refers to geography or named entities—are **NOT acceptable**
+  substitutes for joined country/account names.
+
+- Omit such columns entirely. Never mention them in the summary. Visible cells must carry **readable business words**
+  produced by upstream SQL joins (typically `…name` columns for countries and solutions).
+
+If removing every surrogate column exhausts usable fields but row_count ≥ 1, render a factual one-line acknowledgement
+instead of surrogate codes (e.g. that records exist but descriptive labels were not supplied in the dataset).
 
 ### DATA-SHAPE PRECEDENCE (READ BEFORE PICKING A RENDERING BRANCH):
 Decide how to render the data using EXACTLY this priority order. The first
@@ -231,18 +231,47 @@ matching rule wins — do not consider lower rules once one matches.
     scrolling — a chat bubble is not a dashboard.
 
 #### If data is a single object (this also covers a 1-element array):
-- Render a "details" card layout (a two-column key/value grid or a `<dl>`)
-  inside the card. Keep it tight: each row one line where possible.
-- If the input was a list with exactly one object, treat that one object
-  as the "single object" — unwrap it and render its keys/values. Do NOT
-  render a `<table>` with a single row.
-- Use human-friendly labels for the keys (same casing rules as the table
-  branch: `agreement_end_date` → `Agreement End Date`, etc.).
-- Apply the UUID / ID-LIKE safety net the same way — hide id-like
-  fields entirely.
-- Format values exactly as in the table branch: `null` → em dash (—),
-  booleans → `Yes` / `No`, dates → friendly form, nested arrays/objects
-  inside a wrapped `<pre>`.
+- Render a **premium single-record "details" card** — not a sparse `<dl>`. This is the
+  default for **row count = 1**; it must feel intentional, scannable, and calm (senior product
+  designer quality) while staying inside the chat bubble.
+
+**Layout & structure (mandatory):**
+- After the normal `<h1>` page title and optional `<section class="summary">`, add a
+  dedicated inner wrapper: `<div class="detail-sheet" role="region" aria-label="Record details">`.
+- Inside `detail-sheet`, group fields into **2–4 logical sections** using
+  `<section class="detail-section">` with a short heading each:
+  `<h2 class="detail-section-title">…</h2>` (still **14px** via global rule; use
+  `font-weight: 600` and a thin bottom border or extra `margin-top` / `padding-top` to
+  separate sections — no larger font sizes).
+- Within each section, use a **responsive key/value grid**:
+  - Preferred: CSS `display: grid; grid-template-columns: minmax(140px, 38%) 1fr; gap: 6px 14px;`
+    with each row as `<div class="kv-row">` containing
+    `<span class="kv-label">` (muted colour `#5a6b7a`, `font-weight: 500`) and
+    `<span class="kv-value">` (`font-weight: 400`, word-break for long strings).
+  - Alternative equivalent: a styled `<dl class="kv-grid">` with `<dt>` / `<dd>` per row,
+    same grid alignment. Do **not** use a one-column bullet list.
+
+**Visual polish (still chat-safe):**
+- Give `detail-sheet` a **subtle left accent**: `border-left: 3px solid #8FC9FF;`
+  and `padding-left: 12px;` (or full `padding: 10px 12px;` with very light `#8FC9FF`
+  `background` at ~12% opacity if you can express it — e.g. `rgba` approximating tint).
+- Rows: optional zebra using **only** alternating white / `#f5fafe` (still in the `#8FC9FF`
+  family) for `.kv-row` — keep contrast low.
+- **Primary value emphasis**: if exactly one scalar field is obviously the main answer (e.g.
+  a total, a title, status), duplicate it once in summary or give that row `.kv-value--primary`
+  with `font-weight: 600` — do not inflate font size above 14px.
+
+**Grouping heuristics (best effort from keys):**
+- Identity / naming fields first section; dates second; enums/status third;
+  relational / attribution last — only when inferable from key names.
+
+**Data rules unchanged:**
+- If the input was a list with exactly one object, unwrap it and render that object —
+  never a `<table>` with one body row.
+- Human-friendly labels (`snake_case` → Title Case).
+- UUID / surrogate / `_id` / opaque code columns remain **omitted entirely** per safety rules.
+- Value formatting same as tables: null → — , booleans → Yes / No , dates readable,
+  nested JSON → compact `<pre>` with wrap.
 
 #### If data is a scalar (string/number/bool):
 - Render a single prominent value inside the card with a small caption
@@ -258,7 +287,13 @@ matching rule wins — do not consider lower rules once one matches.
 """
     return prompt
 
-def get_query_prompt(context, query_message, last_context: list | None = None):
+def get_query_prompt(
+    context,
+    query_message,
+    last_context: list | None = None,
+    *,
+    execution_target: str = "Salesforce (BCD / CRM-aligned PostgreSQL)",
+):
     # Build a structured conversation history block for the SQL generator.
     # We expose the raw result data from every prior turn so the model can
     # extract concrete identifiers (IDs, codes, names) and use them as
@@ -293,6 +328,13 @@ You are a senior backend engineer and SQL expert.
 
 Your task is to generate a safe, correct, and production-ready SQL query strictly based on the provided database schema.
 {history_block}
+
+-----------------------
+EXECUTION TARGET (STRICT)
+-----------------------
+You MUST generate SQL **only** against: **{execution_target}**.
+Use **only** tables and columns appearing in the SCHEMA CONTEXT below.
+If the schema is insufficient, return INVALID_QUERY.
 
 -----------------------
 CRITICAL RULES
@@ -466,6 +508,38 @@ SCHEMA CONSTRAINT RULES
        WHERE o.name = 'Rahul Mehta' AND ...
 
 -----------------------
+OIP WAREHOUSE DISPLAY (ONLY WHEN SCHEMA CONTEXT INCLUDES THESE TABLES · e.g. `solutions`, `country_details`, `projects`)
+-----------------------
+
+OI1. **Identifiers never appear as columns to the chat user.** Unless the natural-language
+     question explicitly asks for "IDs", "keys", or "identifiers", you MUST NOT SELECT:
+     • any primary key named `id`, any column ending `_id` (foreign keys),
+       `sf_id`, or other bridge/coded surrogate keys meant for linkage only.
+OI2. **Resolve every FK to readable labels JOIN-time** (mirror rule 10d for Salesforce):
+       • FK to `countries.id` → JOIN `countries` and SELECT **`countries.name`**
+         with aliases such as `ticketing_country`, `servicing_country`,
+         `project_country`, etc.
+       • FK to `opportunities` / `customers` / `projects` / `service_config` /
+         `decision_sources` → JOIN those tables and choose their human-readable
+         text/name columns (`name`, `service_configuration`,
+         `global_customer_name`, `tool_or_service`, etc.).
+OI3. **Ticketing vs servicing countries** ALWAYS use `country_details` as the geography
+      bridge whenever it appears in your path — then expose **ONLY** paired country NAMEs,
+      for example:
+       JOIN countries AS ticketing_ctry ON ticketing_ctry.id = cd.ticketing_country_id
+       JOIN countries AS servicing_ctry ON servicing_ctry.id = cd.servicing_country_id
+       (then SELECT ticketing_ctry.name AS ticketing_country,
+                     servicing_ctry.name AS servicing_country)
+      Do **NOT** expose `ticketing_country_id` or `servicing_country_id` in the result.
+OI4. **Typical readable path Solutions ↔ ticketing/servicing areas:**
+      FROM solutions sol
+      JOIN country_details cd ON cd.id = sol.country_details_id
+      — then apply the OI3 country joins and include rich solution descriptors
+        (tool_or_service, product_type, solution_status/current_status, etc.).
+OI5. **`projects`** multi‑country layouts: JOIN `countries` once per FK you must label
+      (`project_country_id`, `traveller_country_id`, etc.), each projecting `countries.name`.
+
+-----------------------
 BUSINESS GLOSSARY (MAP USER TERMS TO TABLES/COLUMNS)
 -----------------------
 
@@ -473,7 +547,7 @@ GL1. Translate domain terms in the user question to the correct entities:
      - "Customer", "Client", "Account"           -> table `accounts` (use `name`)
      - "GCN", "Global Customer Number"           -> table `gcn` (use `client_name` and/or `case_number`)
      - "Agreement", "Contract"                   -> table `agreements`
-     - "Solution", "Solutions", "Program"        -> table `program_sol`
+     - "Solution", "Solutions", "Program"        -> table `program_sol` unless the SCHEMA CONTEXT includes the OIP `solutions` table — then use `solutions` for warehouse questions
      - "Tool", "Service", "Product"              -> table `tool_service`
      - "Country", "Countries"                    -> table `countries`
      - "Region"                                  -> `countries.region` or `agreements.region`
@@ -487,8 +561,8 @@ GL2. Disambiguation rules:
        (NOT `gcn.client_name`).
      - "GCN" is the entity in the `gcn` table; do NOT confuse it with the
        customer/account name.
-     - "Solution" is a row in `program_sol`. Its readable name is
-       `program_sol.name`.
+     - "Solution" is a row in `program_sol` when only the Salesforce schema defines
+       program solutions; otherwise use the OIP `solutions` entity per GL1.
 
 -----------------------
 AGGREGATION SEMANTICS ("PER X", "FOR EACH X", "BY X")
@@ -662,7 +736,7 @@ BUSINESS GLOSSARY
      - "Customer" / "Client" / "Account" -> table `accounts`
      - "GCN"                              -> table `gcn`
      - "Agreement" / "Contract"           -> table `agreements`
-     - "Solution"                         -> table `program_sol`
+     - "Solution"                         -> table `program_sol` unless `solutions` appears in SCHEMA CONTEXT — then warehouse `solutions`
      - "Tool" / "Service" / "Product"     -> table `tool_service`
      - "Country" / "Region"               -> tables `countries` / column `region`
      - "Volume"                           -> table `annual_vol`
@@ -685,6 +759,10 @@ ID HANDLING RULES (IMPORTANT)
        - `tool_service.id` -> `tool_service.name` AS tool_name
        - `program_sol.id`  -> `program_sol.name`  AS solution_name
        - `permissions.id`  -> `permissions.name`  AS permission_name
+     Whenever the SCHEMA CONTEXT includes OIP catalogue tables (`solutions`, `country_details`):
+       - Prefer `solutions.*` descriptive columns over surrogate keys; NEVER SELECT `*_id`/ `sf_id` for display.
+       - For ticketing vs servicing geographies JOIN `countries` TWICE via `country_details`
+         (`ticketing_country_id`, `servicing_country_id`) and SELECT BOTH `countries.name` aliases.
 
 14b. RICH PROJECTION — preserve a "full details" SELECT list. The chat
      layer renders 1-row results as a details CARD; thin projections look
@@ -757,4 +835,45 @@ FINAL OUTPUT
 Return ONLY the corrected SQL query.
 """
     return prompt
+
+
+def get_secondary_database_router_prompt(
+    *,
+    user_message: str,
+    salesforce_tables: str,
+    oip_tables: str,
+    salesforce_distance: str,
+    oip_distance: str,
+) -> str:
+    return f"""
+You route a natural-language question to **one** PostgreSQL warehouse: **SALESFORCE** or **OIP**.
+
+Semantic retrieval returned these candidate tables (best match first) and distances (lower = better).
+
+USER QUESTION
+-------------
+{user_message}
+
+SALESFORCE catalogue
+--------------------
+Tables: {salesforce_tables}
+Best distance: {salesforce_distance}
+
+OIP catalogue
+-------------
+Tables: {oip_tables}
+Best distance: {oip_distance}
+
+RULES
+-----
+- If the question clearly concerns BCD CRM objects (accounts with agreements/owners/GCN/program solutions, annual volume, etc.) and Salesforce evidence is non-empty, prefer SALESFORCE.
+- If the question clearly concerns OIP entities (opportunities, projects, OIP solutions, SRQ requests, service_config, decision_sources, country_details in the OIP schema) and OIP evidence is non-empty, prefer OIP.
+- If you are not sure, output ASK_USER. Never invent table names not listed above.
+
+OUTPUT (first line ONLY)
+------------------------
+SALESFORCE
+OIP
+ASK_USER
+"""
 

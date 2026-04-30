@@ -1,28 +1,96 @@
 import uuid
+from typing import Any
 
-from sqlalchemy.orm import Session
-from sqlalchemy import text
 from fastapi import Request, Response
+from sqlalchemy import text
 from sqlalchemy.exc import DBAPIError, SQLAlchemyError
+from sqlalchemy.orm import Session
 
 import DTOs
 import helpers
-
+from database import oip_query_engine_configured
+from helpers import datasource as ds
+from helpers import oip_retrieval_hints
+from helpers import schema_context
+from helpers.router import (
+    clarification_message,
+    final_route_from_evidence,
+    snapshot_from_hits,
+)
 
 MAX_SQL_REPAIR_ATTEMPTS = 2
 
-# Tables that sit at the structural center of the schema and should be
-# present in every prompt, regardless of which embeddings happen to win the
-# similarity search. Without them, multi-hop JOINs (e.g. solutions → agreements
-# → gcn → accounts) become impossible to express because the bridging table
-# is missing from the rendered context.
-CORE_ANCHOR_TABLES: tuple[str, ...] = ("accounts", "agreements")
+CORE_ANCHOR_TABLES_SF: tuple[str, ...] = ("accounts", "agreements")
+CORE_KEYS_OIP: tuple[str, ...] = ("accounts", "customers", "opportunities", "solutions")
 
-# session_id strings of every seen user
+# User-visible copy — keep in sync with product wording for empty OIP vector catalogue.
+OIP_CATALOG_MISSING_MESSAGE = (
+    "No **OIP** catalogue embeddings found. Set **`AUTO_SEED_OIP_EMBEDDINGS=1`** "
+    "on startup (loads `schema_oip.json`) or POST `/file/upload` with `data_source=oip`."
+)
+
+
+def _response_oip_catalog_missing() -> dict[str, Any]:
+    return {
+        "response": OIP_CATALOG_MISSING_MESSAGE,
+        "needs_database_choice": False,
+        "resolved_data_source": ds.OIP,
+        "error": "oip_catalog_missing",
+    }
+
+
 active_users: list[str] = []
-
-# [{"session_id": str, "previous_responses": [{"user_query": str, "agent_response": any}, ...]}, ...]
 last_contexts: list[dict] = []
+pin_data_source_by_session: dict[str, str] = {}
+# Stores the natural-language query when routing asks the user to pick Salesforce vs OIP.
+pending_nl_query_by_session: dict[str, str] = {}
+
+
+def _dedupe_ordered_keys(hit_keys: list[str]) -> list[str]:
+    seen: set[str] = set()
+    out: list[str] = []
+    for k in hit_keys:
+        if k and k not in seen:
+            seen.add(k)
+            out.append(k)
+    return out
+
+
+def _merge_anchor_oip(hit_keys: list[str]) -> list[str]:
+    out = _dedupe_ordered_keys(hit_keys)
+    seen = set(out)
+    for a in CORE_KEYS_OIP:
+        if a not in seen:
+            out.append(a)
+            seen.add(a)
+    return out
+
+
+def _is_short_db_pick_reply(message: str) -> bool:
+    m = message.strip()
+    return 0 < len(m) <= 96
+
+
+def _looks_like_new_nl_question(message: str) -> bool:
+    t = message.strip()
+    if len(t) >= 140:
+        return True
+    low = t.lower()
+    cues = (
+        "which ",
+        "what ",
+        "how ",
+        "when ",
+        "where ",
+        "who ",
+        "show ",
+        "list ",
+        "find ",
+        "count ",
+        "tell me",
+        "?",
+    )
+    return any(c in low for c in cues)
 
 
 class AgentService:
@@ -31,9 +99,10 @@ class AgentService:
         http_request: Request,
         http_response: Response,
         request: DTOs.AgentChatRequest,
-        db: Session,
-    ):
-        # ── 1. Resolve / create session ──────────────────────────────────────
+        vector_db: Session,
+        sf_exec_db: Session,
+        oip_exec_db: Session | None,
+    ) -> dict[str, Any]:
         session_id = http_request.cookies.get("session_id")
         if not session_id:
             session_id = str(uuid.uuid4())
@@ -47,84 +116,186 @@ class AgentService:
         if session_id not in active_users:
             active_users.append(session_id)
 
-        # ── 2. Retrieve existing conversation context for this user ───────────
         last_context = self._get_previous_responses(session_id)
 
-        # ── 3. Embeddings → schema context ───────────────────────────────────
-        data = await helpers.generate_embeddings(request.message)
-        query_embeddings = data.data[0].embedding
-        results = helpers.search_data_embeddings(query_embeddings, db)
+        routed: str | None = None
+        explicit = ds.normalize_source(request.data_source)
+        msg = request.message.strip()
+        spoken = ds.parse_source_from_reply(msg) if len(msg) <= 128 else None
 
-        # Collect retrieved table names, preserving similarity order and
-        # de-duplicating because multiple embedding rows can share a key.
-        seen: set[str] = set()
-        table_names: list[str] = []
-        for row, distance in results:
-            print("distance: ", distance)
-            key = row.key
-            if key and key not in seen:
-                seen.add(key)
-                table_names.append(key)
+        pending = pending_nl_query_by_session.get(session_id)
 
-        # Always union in the core anchor tables. They are the structural
-        # hubs of the schema (Customer/Account, Agreement) — almost every
-        # business question routes through them.
-        for anchor in CORE_ANCHOR_TABLES:
-            if anchor not in seen:
-                seen.add(anchor)
-                table_names.append(anchor)
+        query_for_llm = msg
 
-        # `build_schema_context` will FK-expand this seed by 1 hop, so even
-        # bridging tables that are not explicitly mentioned in the question
-        # (or retrieved by embeddings) will appear in the rendered schema.
-        context = helpers.build_schema_context(table_names) or helpers.build_schema_context()
+        if pending is not None:
+            if explicit:
+                query_for_llm = pending_nl_query_by_session.pop(session_id)
+                routed = explicit
+                pin_data_source_by_session[session_id] = explicit
+            elif spoken is not None and _is_short_db_pick_reply(msg):
+                query_for_llm = pending_nl_query_by_session.pop(session_id)
+                routed = spoken
+                pin_data_source_by_session[session_id] = spoken
+            elif _looks_like_new_nl_question(msg):
+                pending_nl_query_by_session.pop(session_id, None)
+            else:
+                return {
+                    "response": (
+                        "I still need to know which database to use for your last question.\n\n"
+                        "Reply **Salesforce** or **OIP**, or send the same question again "
+                        'with `"data_source": "salesforce"` or `"data_source": "oip"` in the request body.'
+                    ),
+                    "needs_database_choice": True,
+                    "resolved_data_source": None,
+                }
 
-        # ── 4. Generate SQL (context-aware) ──────────────────────────────────
-        generated_query = helpers.llm_response(
-            context=context,
-            query_message=request.message,
+        if routed is None:
+            if explicit:
+                pin_data_source_by_session[session_id] = explicit
+                routed = explicit
+            elif spoken:
+                pin_data_source_by_session[session_id] = spoken
+                routed = spoken
+            elif session_id in pin_data_source_by_session:
+                routed = pin_data_source_by_session[session_id]
+
+        emb = await helpers.generate_embeddings(query_for_llm)
+        qvec = emb.data[0].embedding
+
+        sf_hits = helpers.search_data_embeddings(
+            qvec, vector_db, limit=10, catalog_source=ds.SALESFORCE
+        )
+        oip_hits = helpers.search_data_embeddings(
+            qvec, vector_db, limit=10, catalog_source=ds.OIP
+        )
+        oip_hits_for_router = oip_retrieval_hints.merge_oip_vector_hits(
+            oip_hits, query_for_llm
+        )
+        snapshot = snapshot_from_hits(sf_hits, oip_hits_for_router)
+        snapshot_embedding_only = snapshot_from_hits(sf_hits, oip_hits)
+
+        if routed is None:
+            token = final_route_from_evidence(
+                query_for_llm,
+                snapshot,
+                snapshot_embedding_only=snapshot_embedding_only,
+            )
+            if token == "clarify":
+                pending_nl_query_by_session[session_id] = query_for_llm
+                return {
+                    "response": clarification_message(),
+                    "needs_database_choice": True,
+                    "resolved_data_source": None,
+                }
+            routed = token
+
+        if routed == ds.OIP and not oip_query_engine_configured():
+            return {
+                "response": (
+                    "OIP routing was chosen but **`DB_URL_OIP`** is not configured. "
+                    "Set the connection string on the server or choose Salesforce."
+                ),
+                "needs_database_choice": False,
+                "resolved_data_source": None,
+                "error": "oip_not_configured",
+            }
+
+        exec_db = sf_exec_db if routed == ds.SALESFORCE else oip_exec_db
+
+        sf_keys_unique: list[str] = []
+        seen_sf: set[str] = set()
+        for row, _ in sf_hits:
+            k = getattr(row, "key", None)
+            if k and k not in seen_sf:
+                seen_sf.add(k)
+                sf_keys_unique.append(k)
+        for a in CORE_ANCHOR_TABLES_SF:
+            if a not in seen_sf:
+                seen_sf.add(a)
+                sf_keys_unique.append(a)
+
+        oip_hit_keys: list[str] = []
+        seen_o = set()
+        for row, _ in oip_hits_for_router:
+            k = getattr(row, "key", None)
+            if k and k not in seen_o:
+                seen_o.add(k)
+                oip_hit_keys.append(k)
+        merged_oip = _merge_anchor_oip(oip_hit_keys)
+
+        if routed == ds.SALESFORCE:
+            ctx = (
+                schema_context.build_schema_context(sf_keys_unique)
+                or schema_context.build_schema_context()
+            )
+            exec_label = "Salesforce (BCD / CRM-aligned PostgreSQL)"
+            enum_norm = True
+        else:
+            bodies = helpers.fetch_embedding_contents_ordered(
+                vector_db,
+                catalog_source=ds.OIP,
+                ordered_keys=merged_oip,
+            )
+            ctx = schema_context.build_catalog_context_from_embeddings(bodies)
+            if not ctx:
+                ctx = schema_context.build_oip_context_from_repo_file(merged_oip)
+            if not ctx:
+                return _response_oip_catalog_missing()
+            exec_label = "OIP warehouse PostgreSQL (schema_oip.json)"
+            enum_norm = False
+
+        if not ctx:
+            return {
+                "response": "Schema catalogue unavailable for routing.",
+                "needs_database_choice": False,
+                "resolved_data_source": routed,
+                "error": "no_schema_context",
+            }
+
+        gen = helpers.llm_response(
+            context=ctx,
+            query_message=query_for_llm,
             last_context=last_context,
+            execution_target=exec_label,
+            apply_enum_normaliser=enum_norm,
         )
-        valid_query = generated_query.response.strip()
-        if valid_query.upper() == "INVALID_QUERY":
-            return "No search result for this"
-
-        print("query: ", valid_query)
-
-        # ── 5. Execute SQL (with auto-repair) ─────────────────────────────────
-        raw_data = self._execute_with_repair(
-            db=db,
-            context=context,
-            user_query=request.message,
-            sql=valid_query,
+        sql_text = gen.response.strip()
+        if sql_text.upper() == "INVALID_QUERY":
+            return {
+                "response": "No search result for this",
+                "needs_database_choice": False,
+                "resolved_data_source": routed,
+            }
+        raw = self._execute_with_repair(
+            db=exec_db,
+            context=ctx,
+            user_query=query_for_llm,
+            sql=sql_text,
+            execution_label=exec_label,
+            enum_norm=enum_norm,
         )
-        if raw_data is None:
-            return "No search result for this"
+        if raw is None:
+            return {
+                "response": "No search result for this",
+                "needs_database_choice": False,
+                "resolved_data_source": routed,
+            }
 
-        # Normalise SQLAlchemy RowMapping objects into plain Python dicts at
-        # the single source of truth. This guarantees that everything
-        # downstream (the LLM renderer, conversation history, future SQL
-        # follow-ups) sees clean, JSON-serialisable data instead of
-        # `RowMapping` reprs (e.g. `Decimal('1.5')`, `datetime.date(...)`)
-        # which the model can misinterpret as malformed/empty.
-        serialized_data: list[dict] = [dict(row) for row in raw_data]
-        print("raw data: ", serialized_data)
+        serialized = [dict(row) for row in raw]
 
-        # ── 6. Generate LLM / HTML response, passing conversation context ─────
-        llm_response = helpers.generate_normalized_llm_response(
-            serialized_data, request.message, last_context
+        html = helpers.generate_normalized_llm_response(
+            serialized, query_for_llm, last_context
         )
+        self._save_to_context(session_id, query_for_llm, serialized)
 
-        # ── 7. Persist this turn into last_contexts ───────────────────────────
-        self._save_to_context(session_id, request.message, serialized_data)
-
-        return llm_response
-
-    # ── Context helpers ────────────────────────────────────────────────────────
+        return {
+            "response": html,
+            "needs_database_choice": False,
+            "resolved_data_source": routed,
+        }
 
     @staticmethod
     def _get_previous_responses(session_id: str) -> list[dict]:
-        """Return the previous_responses list for this session, or [] if none."""
         for entry in last_contexts:
             if entry["session_id"] == session_id:
                 return entry["previous_responses"]
@@ -132,7 +303,6 @@ class AgentService:
 
     @staticmethod
     def _save_to_context(session_id: str, user_query: str, agent_response) -> None:
-        """Append a new turn to last_contexts, creating the session entry if needed."""
         for entry in last_contexts:
             if entry["session_id"] == session_id:
                 entry["previous_responses"].append(
@@ -148,55 +318,52 @@ class AgentService:
             }
         )
 
-    def _execute_with_repair(self, db: Session, context: str, user_query: str, sql: str):
-        """Execute SQL, and if it fails ask the LLM to repair it using the DB error.
-
-        On any DBAPI failure we roll back the session (otherwise the
-        connection stays in an aborted state and every subsequent statement
-        fails), then hand the original user question, schema context, failing
-        SQL and the database error back to the LLM for a single correction
-        pass. Bounded by MAX_SQL_REPAIR_ATTEMPTS so we never loop forever.
-        """
-        current_sql = sql
-        last_error: str = ""
+    def _execute_with_repair(
+        self,
+        db: Session,
+        context: str,
+        user_query: str,
+        sql: str,
+        *,
+        execution_label: str,
+        enum_norm: bool,
+    ):
+        sql_cur = sql
+        last_err = ""
 
         for attempt in range(MAX_SQL_REPAIR_ATTEMPTS + 1):
             try:
-                response = db.execute(text(current_sql))
-                return response.mappings().all()
+                rsp = db.execute(text(sql_cur))
+                return rsp.mappings().all()
             except DBAPIError as exc:
-                last_error = self._extract_db_error(exc)
-                print(f"SQL attempt {attempt + 1} failed: {last_error}")
-
+                last_err = self._extract_db_error(exc)
+                print(f"[{execution_label}] SQL fail {attempt + 1}: {last_err}")
                 try:
                     db.rollback()
-                except SQLAlchemyError as rollback_exc:
-                    print("rollback failed:", rollback_exc)
-
+                except SQLAlchemyError as rexc:
+                    print("rollback:", rexc)
                 if attempt >= MAX_SQL_REPAIR_ATTEMPTS:
                     break
-
                 repaired = helpers.llm_fix_response(
                     context=context,
                     query_message=user_query,
-                    previous_sql=current_sql,
-                    error_message=last_error,
+                    previous_sql=sql_cur,
+                    error_message=last_err,
+                    apply_enum_normaliser=enum_norm,
                 )
-                next_sql = repaired.response.strip()
-                if not next_sql or next_sql.upper() == "INVALID_QUERY" or next_sql == current_sql:
+                nxt = repaired.response.strip()
+                if not nxt or nxt.upper() == "INVALID_QUERY" or nxt == sql_cur:
                     break
-                print(f"repaired query (attempt {attempt + 2}): {next_sql}")
-                current_sql = next_sql
+                sql_cur = nxt
 
-        print(f"giving up after SQL repair attempts; last error: {last_error}")
+        print(f"[{execution_label}] giving up repairs: {last_err}")
         return None
 
     @staticmethod
     def _extract_db_error(exc: DBAPIError) -> str:
-        """Pull the concise driver message out of a SQLAlchemy DBAPIError."""
         orig = getattr(exc, "orig", None)
         if orig is not None:
-            message = str(orig).strip()
-            if message:
-                return message
+            m = str(orig).strip()
+            if m:
+                return m
         return str(exc).strip()

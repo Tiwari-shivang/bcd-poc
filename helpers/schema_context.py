@@ -22,12 +22,16 @@ Two production-grade enhancements over the original implementation:
 
 from __future__ import annotations
 
+import json
+import os
 from collections import defaultdict
+from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Set, Tuple
 
 from sqlalchemy import Enum as SAEnum
 
 from database import BaseModel
+from helpers import catalog_summary
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -242,3 +246,62 @@ def build_schema_context(
             blocks.append(rel_block)
 
     return "\n\n---\n\n".join(blocks)
+
+
+def build_catalog_context_from_embeddings(contents: list[str]) -> str:
+    """Build SQL prompt context from stored embedding text (OIP path)."""
+    parts = [str(c).strip() for c in contents if c and str(c).strip()]
+    if not parts:
+        return ""
+    return "## OIP schema (from catalogue)\n\n" + "\n\n---\n\n".join(parts)
+
+
+def _resolve_oip_schema_path(explicit: Optional[Path] = None) -> Optional[Path]:
+    if explicit is not None:
+        return explicit if explicit.is_file() else None
+    env = os.getenv("OIP_SCHEMA_PATH", "").strip()
+    if env:
+        p = Path(env).expanduser()
+        return p if p.is_file() else None
+    default = Path(__file__).resolve().parent.parent / "schema_oip.json"
+    return default if default.is_file() else None
+
+
+def build_oip_context_from_repo_file(
+    ordered_table_keys: List[str],
+    *,
+    schema_path: Optional[Path] = None,
+) -> str:
+    """Fallback when vector DB has no OIP embeddings: ship `schema_oip.json`.
+
+    Honour ``OIP_SCHEMA_PATH`` env or sibling ``schema_oip.json`` in the repo root.
+    If ``ordered_table_keys`` matches nothing (stale embedding keys only), emits
+    the full catalogue from the JSON file so OIP NL→SQL still works offline.
+    """
+    path = _resolve_oip_schema_path(schema_path)
+    if path is None:
+        return ""
+    try:
+        raw_tables = json.loads(path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return ""
+    if not isinstance(raw_tables, list):
+        return ""
+    by_name = {str(t.get("table")): t for t in raw_tables if t.get("table")}
+    summaries: List[str] = []
+    seen: Set[str] = set()
+    for k in ordered_table_keys:
+        if not k or k in seen:
+            continue
+        row = by_name.get(k)
+        if not row:
+            continue
+        seen.add(k)
+        summaries.append(catalog_summary.build_table_catalog_summary(row))
+    if not summaries:
+        for t in raw_tables:
+            if t.get("table"):
+                summaries.append(catalog_summary.build_table_catalog_summary(t))
+    if not summaries:
+        return ""
+    return build_catalog_context_from_embeddings(summaries)

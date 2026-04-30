@@ -1,0 +1,129 @@
+[
+  {
+    "table": "accounts",
+    "columns": [
+      {"name": "id", "type": "char(36)", "is_pk": true},
+      {"name": "sf_id", "type": "varchar(255)"},
+      {"name": "name", "type": "varchar(255)"},
+      {"name": "address", "type": "text"},
+      {"name": "created_at", "type": "timestamp"},
+      {"name": "updated_at", "type": "timestamp"}
+    ]
+  },
+  {
+    "table": "customers",
+    "columns": [
+      {"name": "id", "type": "char(36)", "is_pk": true},
+      {"name": "sf_id", "type": "varchar(255)"},
+      {"name": "global_customer_name", "type": "varchar(255)"},
+      {"name": "global_customer_number", "type": "varchar(255)"},
+      {"name": "gcn_type", "type": "varchar(100)"},
+      {"name": "status", "type": "varchar(100)"},
+      {"name": "cbc_case_safe_id", "type": "varchar(255)"},
+      {"name": "created_at", "type": "timestamp"},
+      {"name": "updated_at", "type": "timestamp"}
+    ]
+  },
+  {
+    "table": "opportunities",
+    "columns": [
+      {"name": "id", "type": "char(36)", "is_pk": true},
+      {"name": "name", "type": "varchar(255)"},
+      {"name": "sf_case_safe_id", "type": "varchar(255)"},
+      {"name": "sales_category", "type": "varchar(100)"},
+      {"name": "record_type", "type": "varchar(100)"},
+      {"name": "isd_status", "type": "varchar(100)"},
+      {"name": "created_at", "type": "timestamp"},
+      {"name": "account_id", "type": "char(36)", "is_fk": true, "references": "accounts.id"},
+      {"name": "customer_id", "type": "char(36)", "is_fk": true, "references": "customers.id"}
+    ]
+  },
+  {
+    "table": "countries",
+    "columns": [
+      {"name": "id", "type": "char(36)", "is_pk": true},
+      {"name": "name", "type": "varchar(100)"},
+      {"name": "iso_code", "type": "varchar(10)"},
+      {"name": "created_at", "type": "timestamp"}
+    ]
+  },
+  {
+    "table": "country_details",
+    "columns": [
+      {"name": "id", "type": "char(36)", "is_pk": true},
+      {"name": "case_safe_id", "type": "varchar(255)"},
+      {"name": "ticketing_country_id", "type": "char(36)", "is_fk": true, "references": "countries.id"},
+      {"name": "servicing_country_id", "type": "char(36)", "is_fk": true, "references": "countries.id"},
+      {"name": "invoicing_agency", "type": "varchar(255)"},
+      {"name": "servicing_agency", "type": "varchar(255)"},
+      {"name": "created_at", "type": "timestamp"}
+    ]
+  },
+  {
+    "table": "projects",
+    "columns": [
+      {"name": "id", "type": "char(36)", "is_pk": true},
+      {"name": "name", "type": "varchar(255)"},
+      {"name": "project_configuration_id", "type": "varchar(255)"},
+      {"name": "opportunity_id", "type": "char(36)", "is_fk": true, "references": "opportunities.id"},
+      {"name": "project_country_id", "type": "char(36)", "is_fk": true, "references": "countries.id"},
+      {"name": "traveller_country_id", "type": "char(36)", "is_fk": true, "references": "countries.id"},
+      {"name": "country_details_id", "type": "char(36)", "is_fk": true, "references": "country_details.id"},
+      {"name": "created_at", "type": "timestamp"}
+    ]
+  },
+  {
+    "table": "decision_sources",
+    "columns": [
+      {"name": "id", "type": "char(36)", "is_pk": true},
+      {"name": "external_id", "type": "varchar(255)"},
+      {"name": "case_safe_id", "type": "varchar(255)"},
+      {"name": "created_at", "type": "timestamp"}
+    ]
+  },
+  {
+    "table": "service_config",
+    "columns": [
+      {"name": "id", "type": "char(36)", "is_pk": true},
+      {"name": "service_configuration", "type": "varchar(255)"},
+      {"name": "service_segmentation", "type": "varchar(255)"},
+      {"name": "created_at", "type": "timestamp"}
+    ]
+  },
+  {
+    "table": "solutions",
+    "columns": [
+      {"name": "id", "type": "char(36)", "is_pk": true},
+      {"name": "sf_id", "type": "varchar(255)"},
+      {"name": "program_solution_case_safe_id", "type": "varchar(255)"},
+      {"name": "tool_or_service", "type": "varchar(255)"},
+      {"name": "product_type_id", "type": "varchar(255)"},
+      {"name": "product_type", "type": "varchar(255)"},
+      {"name": "solution_status_id", "type": "varchar(255)"},
+      {"name": "solution_status", "type": "varchar(100)"},
+      {"name": "record_type", "type": "varchar(100)"},
+      {"name": "status_id", "type": "varchar(255)"},
+      {"name": "current_status", "type": "varchar(100)"},
+      {"name": "final_status", "type": "varchar(100)"},
+      {"name": "created_by", "type": "varchar(255)"},
+      {"name": "enabled", "type": "boolean"},
+      {"name": "created_at", "type": "timestamp"},
+      {"name": "updated_at", "type": "timestamp"},
+      {"name": "opportunity_id", "type": "char(36)", "is_fk": true, "references": "opportunities.id"},
+      {"name": "project_id", "type": "char(36)", "is_fk": true, "references": "projects.id"},
+      {"name": "decision_source_id", "type": "char(36)", "is_fk": true, "references": "decision_sources.id"},
+      {"name": "service_config_id", "type": "char(36)", "is_fk": true, "references": "service_config.id"},
+      {"name": "country_details_id", "type": "char(36)", "is_fk": true, "references": "country_details.id"}
+    ]
+  },
+  {
+    "table": "srq_requests",
+    "columns": [
+      {"name": "id", "type": "char(36)", "is_pk": true},
+      {"name": "srq_number", "type": "varchar(255)"},
+      {"name": "srq_name", "type": "varchar(255)"},
+      {"name": "solution_id", "type": "char(36)", "is_fk": true, "references": "solutions.id"},
+      {"name": "created_at", "type": "timestamp"}
+    ]
+  }
+]

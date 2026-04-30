@@ -40,13 +40,43 @@ def _serialize_history(last_context: list | None):
         for turn in last_context
     ]
 
-def sanitize_generated_query(query: str):
+def sanitize_generated_query(query: str, *, apply_enum_normaliser: bool = True):
     sanitized_query = query.replace("\n", " ").replace("\t", " ").strip()
     if sanitized_query.upper() == "INVALID_QUERY":
         return sanitized_query
+    if not apply_enum_normaliser:
+        return sanitized_query
     return normalize_enum_literals(sanitized_query)
 
-def llm_response(context, query_message: str, last_context: list | None = None):
+
+def fetch_embedding_contents_ordered(
+    db: Session,
+    *,
+    catalog_source: str,
+    ordered_keys: list[str],
+) -> list[str]:
+    stmt = select(EmbeddingModel.key, EmbeddingModel.content).where(
+        EmbeddingModel.data_source == catalog_source,
+        EmbeddingModel.key.in_(ordered_keys),
+    )
+    rows = db.execute(stmt).all()
+    mapping = {key: ct for key, ct in rows if ct}
+    out: list[str] = []
+    for k in ordered_keys:
+        raw = mapping.get(k)
+        if raw and str(raw).strip():
+            out.append(str(raw).strip())
+    return out
+
+
+def llm_response(
+    context,
+    query_message: str,
+    last_context: list | None = None,
+    *,
+    execution_target: str = "Salesforce (BCD / CRM-aligned PostgreSQL)",
+    apply_enum_normaliser: bool = True,
+):
     response = ai_client.chat.completions.create(
         model="gpt-4o-mini",
         messages=[
@@ -54,19 +84,32 @@ def llm_response(context, query_message: str, last_context: list | None = None):
             {
                 "role": "user",
                 "content": prompts.get_query_prompt(
-                    context, query_message, _serialize_history(last_context)
+                    context,
+                    query_message,
+                    _serialize_history(last_context),
+                    execution_target=execution_target,
                 ),
             },
         ],
         temperature=0.2,
     )
     query = DTOs.AgentChatResponse(
-        response=sanitize_generated_query(response.choices[0].message.content)
+        response=sanitize_generated_query(
+            response.choices[0].message.content,
+            apply_enum_normaliser=apply_enum_normaliser,
+        )
     )
     return query
 
 
-def llm_fix_response(context, query_message: str, previous_sql: str, error_message: str):
+def llm_fix_response(
+    context,
+    query_message: str,
+    previous_sql: str,
+    error_message: str,
+    *,
+    apply_enum_normaliser: bool = True,
+):
     """Ask the LLM to repair a SQL query that failed at execution time."""
     response = ai_client.chat.completions.create(
         model="gpt-4o-mini",
@@ -82,7 +125,10 @@ def llm_fix_response(context, query_message: str, previous_sql: str, error_messa
         temperature=0.1,
     )
     fixed = DTOs.AgentChatResponse(
-        response=sanitize_generated_query(response.choices[0].message.content)
+        response=sanitize_generated_query(
+            response.choices[0].message.content,
+            apply_enum_normaliser=apply_enum_normaliser,
+        )
     )
     return fixed
 
@@ -93,23 +139,15 @@ async def generate_embeddings(content: str):
     )
     return embeddings
 
-def search_data_embeddings(query_embedding, db: Session, limit: int = 10):
-    """Return the top-`limit` embedding rows ordered by cosine distance.
-
-    The limit is intentionally generous (10 rather than 5): cheap on the
-    embedding side, but it materially improves recall on questions that
-    touch multiple business entities (e.g. "solutions per GCN for a
-    customer"). De-duplication of `key` is handled by the caller, so we do
-    not narrow the result set here.
-    """
+def search_data_embeddings(
+    query_embedding, db: Session, limit: int = 10, *, catalog_source: str | None = None
+):
     distance_arr = EmbeddingModel.data.cosine_distance(query_embedding)
-    query = (
-        select(EmbeddingModel, distance_arr.label("distance"))
-        .order_by(distance_arr.asc())
-        .limit(limit)
-    )
-    return db.execute(query).all()
-
+    stmt = select(EmbeddingModel, distance_arr.label("distance"))
+    if catalog_source is not None:
+        stmt = stmt.where(EmbeddingModel.data_source == catalog_source)
+    stmt = stmt.order_by(distance_arr.asc()).limit(limit)
+    return db.execute(stmt).all()
 def _strip_markdown_fences(text: str) -> str:
     """Remove any markdown code-fence wrapping the model may have added.
 
