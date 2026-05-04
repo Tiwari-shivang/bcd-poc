@@ -205,3 +205,137 @@ def generate_normalized_llm_response(data, user_query, last_context: list | None
         ],
     )
     return _strip_markdown_fences(response.choices[0].message.content)
+
+def get_insights_salesforce(content):
+    insights_prompt = prompts.get_insights_salesforce_prompt(content)
+    response = ai_client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[
+            {"role": "system", "content": ""},
+            {
+                "role": "user",
+                "content": insights_prompt,
+            },
+        ],
+        temperature=0.2,
+    )
+    raw = response.choices[0].message.content or ""
+    return _strip_markdown_fences(raw).strip()
+
+
+def get_insights_oip(content):
+    insights_prompt = prompts.get_insights_oip_prompt(content)
+    response = ai_client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[
+            {"role": "system", "content": ""},
+            {
+                "role": "user",
+                "content": insights_prompt,
+            },
+        ],
+        temperature=0.2,
+    )
+    raw = response.choices[0].message.content or ""
+    return _strip_markdown_fences(raw).strip()
+
+
+def get_chart_specs_salesforce(content):
+    chart_prompt = prompts.get_chart_specs_salesforce_prompt(content)
+    response = ai_client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[
+            {"role": "system", "content": ""},
+            {
+                "role": "user",
+                "content": chart_prompt,
+            },
+        ],
+        temperature=0.2,
+    )
+    raw = response.choices[0].message.content or ""
+    return _strip_markdown_fences(raw).strip()
+
+
+def get_chart_specs_oip(content):
+    chart_prompt = prompts.get_chart_specs_oip_prompt(content)
+    response = ai_client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[
+            {"role": "system", "content": ""},
+            {
+                "role": "user",
+                "content": chart_prompt,
+            },
+        ],
+        temperature=0.2,
+    )
+    raw = response.choices[0].message.content or ""
+    return _strip_markdown_fences(raw).strip()
+
+
+def parse_insights_json(raw: str) -> list[dict]:
+    """Parse strict JSON array from insights LLM output; raises ValueError if invalid."""
+    text = raw.strip()
+    try:
+        data = json.loads(text)
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"Insights response is not valid JSON: {exc}") from exc
+    if not isinstance(data, list):
+        raise ValueError("Insights JSON must be a top-level array")
+    out = []
+    for i, item in enumerate(data):
+        if not isinstance(item, dict):
+            raise ValueError(f"Insight index {i} must be an object")
+        sql = item.get("sql")
+        if not isinstance(sql, str) or not sql.strip():
+            raise ValueError(f"Insight index {i} missing string 'sql'")
+        out.append(
+            {
+                "insight_title": item.get("insight_title"),
+                "insight_description": item.get("insight_description"),
+                "sql": sql.strip(),
+            }
+        )
+    return out
+
+
+def parse_salesforce_insights_json(raw: str) -> list[dict]:
+    return parse_insights_json(raw)
+
+
+def parse_chart_specs_json(raw: str) -> list[dict]:
+    text = raw.strip()
+    try:
+        data = json.loads(text)
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"Chart response is not valid JSON: {exc}") from exc
+    if not isinstance(data, list):
+        raise ValueError("Chart JSON must be a top-level array")
+
+    allowed_chart_types = {"pie", "bar", "line"}
+    out = []
+    for i, item in enumerate(data):
+        if not isinstance(item, dict):
+            raise ValueError(f"Chart index {i} must be an object")
+        sql = item.get("sql")
+        chart_type = item.get("chart_type")
+        chart_config = item.get("chart_config")
+        if not isinstance(sql, str) or not sql.strip():
+            raise ValueError(f"Chart index {i} missing string 'sql'")
+        if chart_type not in allowed_chart_types:
+            raise ValueError(
+                f"Chart index {i} must have chart_type in {sorted(allowed_chart_types)}"
+            )
+        if not isinstance(chart_config, dict):
+            raise ValueError(f"Chart index {i} missing object 'chart_config'")
+        out.append(
+            {
+                "chart_title": item.get("chart_title"),
+                "chart_description": item.get("chart_description"),
+                "chart_type": chart_type,
+                "chart_config": chart_config,
+                "sql": sql.strip(),
+            }
+        )
+    return out

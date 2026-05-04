@@ -877,3 +877,362 @@ OIP
 ASK_USER
 """
 
+
+def _salesforce_insights_enum_and_sql_contract() -> str:
+    """Enum literals aligned with SQLAlchemy models — keeps generated insight SQL runnable."""
+    import json
+
+    from models.account_model import CLIENT_STATUS_ENUM
+    from models.aggrement_model import AGREEMENT_STATUS_ENUM, CONTRACT_TYPE_ENUM, RENEWAL_TERMS_ENUM
+    from models.gcn_model import GCN_STATUS_ENUM
+    from models.program_sol_model import PROGRAM_SOL_STATUS_ENUM
+
+    return (
+        "ENUM literals (PostgreSQL). Every comparison MUST match EXACTLY — spaces, capitalization, punctuation.\n"
+        "Never invent synonyms (e.g. never use lowercase 'active'; use literals below only).\n"
+        "- agreements.contract_type (`contract_type_enum`): "
+        + json.dumps(list(CONTRACT_TYPE_ENUM), ensure_ascii=False)
+        + "\n"
+        "- agreements.status (`agreement_status_enum`): "
+        + json.dumps(list(AGREEMENT_STATUS_ENUM), ensure_ascii=False)
+        + "\n"
+        "- agreements.renewal_terms (`renewal_terms_enum`): "
+        + json.dumps(list(RENEWAL_TERMS_ENUM), ensure_ascii=False)
+        + "\n"
+        "- gcn.status (`gcn_status_enum`): "
+        + json.dumps(list(GCN_STATUS_ENUM), ensure_ascii=False)
+        + "\n"
+        "- program_sol.status (`program_sol_status_enum`): "
+        + json.dumps(list(PROGRAM_SOL_STATUS_ENUM), ensure_ascii=False)
+        + "\n"
+        "- accounts.{advito,me,bcd}_client_status (`advito_client_status_enum` etc.): "
+        + json.dumps(list(CLIENT_STATUS_ENUM), ensure_ascii=False)
+        + "\n\n"
+        "PostgreSQL & filter rules:\n"
+        "- There is NO `agreements.status` value equal to `'active'` or `'Active'` in agreement_status_enum. "
+        '"Active agreements" / in-force contracts MUST use BOTH date predicates:\n'
+        "  agreements.effective_date <= CURRENT_DATE AND agreements.agreement_end_date >= CURRENT_DATE\n"
+        "- For agreements nearing expiry, keep those date predicates AND add e.g.\n"
+        "  agreements.agreement_end_date < CURRENT_DATE + INTERVAL '30 days'\n"
+        "  Optionally add agreements.status comparisons ONLY against agreement_status_enum literals above.\n"
+        "- When filtering gcn rows as active, ONLY use status = 'Active' (capital A).\n"
+        "- HAVING and WHERE in the SAME query level MUST NOT rely on SELECT output aliases "
+        "(e.g. a column labeled total_travel_volume). Repeat the full aggregate expression in HAVING, "
+        "or wrap the aggregated SELECT inside a named subquery/CTE then filter on projected columns.\n"
+        "- Prefer JOIN keys that appear in schema FOREIGN KEY lines only; verify each column belongs "
+        "to the referenced table definition.\n"
+        "- Never project raw UUID/ID fields in final insight output. If a query uses any foreign key such as "
+        "`account_id`, `country_id`, `owner_id`, `agreement_id`, `gcn_id`, `tool_service_id`, or "
+        "`program_sol_id`, JOIN to the referenced table and project the human-readable column instead "
+        "(typically `name`, or `client_name` for `gcn`)."
+        "\n\n"
+        "PROGRAM_SOL vs TRAVEL VOLUME linkage: program_sol.country_id may join annual_vol.country_id "
+        "when geography-level comparison is justified; COUNT(ps.id)=0 identifies countries with volumes "
+        "but no mapped program_sol row.\n"
+    )
+
+
+def get_insights_salesforce_prompt(content):
+  return f"""
+You are a senior data analyst with deep expertise in the travel domain (corporate travel, agreements, program solutions, and travel volume analytics).
+
+Your task is to analyze a given database schema and generate business-critical insights.
+
+CONTEXT:
+- The database belongs to a travel management company.
+- It contains data about accounts (clients), agreements (contracts), travel volume, countries, and program solutions.
+- Your goal is NOT to generate random queries, but to identify high-value business insights.
+
+OBJECTIVE:
+1. Carefully analyze the provided schema (tables, columns, relationships).
+2. Think from a BUSINESS perspective:
+   - Revenue opportunities
+   - Demand vs supply gaps
+   - Client health
+   - Contract risks
+   - Operational inefficiencies
+3. Identify 3 to 4 HIGH-IMPACT insights that would help a business stakeholder make decisions.
+
+INSTRUCTIONS FOR SQL:
+- Generate ONLY 3 to 4 SQL queries.
+- Each query must correspond to ONE clear business insight.
+- Queries must be:
+  - syntactically correct
+  - based ONLY on the given schema (no hallucinated tables/columns)
+  - aggregation-focused (COUNT, SUM, GROUP BY, etc.)
+- Prefer queries that:
+  - highlight trends
+  - compare categories
+  - detect gaps or anomalies
+
+{_salesforce_insights_enum_and_sql_contract()}
+
+OUTPUT FORMAT (STRICT):
+
+Return a JSON array with objects in this format:
+
+[
+  {{
+    "insight_title": "Short business title",
+    "insight_description": "Why this insight matters in business terms",
+    "sql": "SQL query here"
+  }}
+]
+
+PURITY RULES (NON-NEGOTIABLE):
+- Your entire response MUST be **valid JSON only**: nothing before or after the JSON.
+- The first non-whitespace character MUST be `[` and the last non-whitespace character MUST be `]`.
+- **FORBIDDEN:** markdown code fences (e.g. ``` or ```json), backticks around the payload,
+  labels like "sql:", "json:", commentary, or any prose outside the JSON array.
+- **FORBIDDEN:** wrapping the array in a string or object — output the array itself.
+
+IMPORTANT RULES:
+- DO NOT explain SQL outside JSON
+- DO NOT add extra text
+- DO NOT hallucinate tables or columns
+- DO NOT generate more than 4 queries
+- Avoid trivial queries (e.g., simple SELECT *)
+- Focus on decision-making insights, not raw data
+
+EXAMPLES OF GOOD INSIGHTS (for guidance only, do not copy):
+- Countries with highest travel demand
+- Agreements nearing expiration
+- High demand but low program solution coverage
+- Distribution of travel types (air, hotel, etc.)
+
+Now analyze the schema and generate insights. 
+schema: {content}
+  """
+
+
+def get_insights_oip_prompt(content):
+  return f"""
+You are a senior data analyst working on an OIP warehouse for travel implementation, delivery, and solution operations.
+
+Your task is to analyze a given database schema and generate business-critical insights.
+
+CONTEXT:
+- The database belongs to a travel management company.
+- It contains OIP warehouse data for accounts, customers, opportunities, projects, countries, country_details, solutions, SRQ requests, service configuration, and decision sources.
+- Your goal is NOT to generate random queries, but to identify high-value business insights.
+
+OBJECTIVE:
+1. Carefully analyze the provided schema (tables, columns, relationships).
+2. Think from a BUSINESS perspective:
+   - Pipeline concentration
+   - Solution coverage and status risk
+   - Project and geography complexity
+   - Service configuration demand
+   - Operational bottlenecks
+3. Identify 3 to 4 HIGH-IMPACT insights that would help a business stakeholder make decisions.
+
+INSTRUCTIONS FOR SQL:
+- Generate ONLY 3 to 4 SQL queries.
+- Each query must correspond to ONE clear business insight.
+- Queries must be:
+  - syntactically correct
+  - based ONLY on the given schema (no hallucinated tables/columns)
+  - aggregation-focused (COUNT, SUM, GROUP BY, etc.)
+- Prefer queries that:
+  - highlight trends
+  - compare categories
+  - detect gaps or anomalies
+- Never project raw UUID/ID fields in final insight output. JOIN to the referenced table and return human-readable columns such as `name`, `global_customer_name`, `tool_or_service`, or `service_configuration`.
+- If you use `ticketing_country_id`, `servicing_country_id`, `project_country_id`, or `traveller_country_id`, JOIN to `countries` and return country names.
+
+OUTPUT FORMAT (STRICT):
+
+Return a JSON array with objects in this format:
+
+[
+  {{
+    "insight_title": "Short business title",
+    "insight_description": "Why this insight matters in business terms",
+    "sql": "SQL query here"
+  }}
+]
+
+PURITY RULES (NON-NEGOTIABLE):
+- Your entire response MUST be **valid JSON only**: nothing before or after the JSON.
+- The first non-whitespace character MUST be `[` and the last non-whitespace character MUST be `]`.
+- **FORBIDDEN:** markdown code fences (e.g. ``` or ```json), backticks around the payload,
+  labels like "sql:", "json:", commentary, or any prose outside the JSON array.
+- **FORBIDDEN:** wrapping the array in a string or object — output the array itself.
+
+IMPORTANT RULES:
+- DO NOT explain SQL outside JSON
+- DO NOT add extra text
+- DO NOT hallucinate tables or columns
+- DO NOT generate more than 4 queries
+- Avoid trivial queries (e.g., simple SELECT *)
+- Focus on decision-making insights, not raw data
+
+EXAMPLES OF GOOD INSIGHTS (for guidance only, do not copy):
+- Opportunities with the widest solution footprint
+- Customers with high project complexity across countries
+- Service configurations most associated with active solutions
+- Solution status distribution by project or geography
+
+Now analyze the schema and generate insights.
+schema: {content}
+  """
+
+
+def get_chart_specs_salesforce_prompt(content):
+  return f"""
+You are a senior product analyst and travel-domain expert.
+
+Your task is to analyze the Salesforce travel schema and generate chart-ready SQL for a frontend using Recharts.
+
+CONTEXT:
+- The database belongs to a travel management company.
+- It contains accounts, agreements, countries, annual volume, program solutions, owners, and GCN data.
+- The frontend needs three visualizations: one pie chart, one bar chart, and one line chart.
+
+OBJECTIVE:
+1. Identify three high-value business views for a stakeholder.
+2. Generate exactly one chart definition for each chart type: `pie`, `bar`, and `line`.
+3. Each chart must return a compact, business-readable dataset suitable for direct use in Recharts.
+
+SQL RULES:
+- Use only tables and columns present in the supplied schema.
+- Return human-readable names, never raw UUIDs or opaque IDs.
+- Keep result shapes simple and chart-friendly.
+- Prefer aggregated datasets with clear dimensions and metrics.
+- For line charts, use a natural ordered axis if possible (date, month, year, or other sequential category).
+- Each SQL query must be a single safe `SELECT` or `WITH` statement.
+
+{_salesforce_insights_enum_and_sql_contract()}
+
+OUTPUT FORMAT (STRICT):
+
+Return a JSON array with exactly 3 objects in this format:
+
+[
+  {{
+    "chart_title": "Short chart title",
+    "chart_description": "Why the chart matters",
+    "chart_type": "pie",
+    "chart_config": {{
+      "name_key": "dimension_column",
+      "value_key": "metric_column"
+    }},
+    "sql": "SQL query here"
+  }},
+  {{
+    "chart_title": "Short chart title",
+    "chart_description": "Why the chart matters",
+    "chart_type": "bar",
+    "chart_config": {{
+      "x_key": "dimension_column",
+      "y_key": "metric_column"
+    }},
+    "sql": "SQL query here"
+  }},
+  {{
+    "chart_title": "Short chart title",
+    "chart_description": "Why the chart matters",
+    "chart_type": "line",
+    "chart_config": {{
+      "x_key": "ordered_dimension_column",
+      "y_key": "metric_column"
+    }},
+    "sql": "SQL query here"
+  }}
+]
+
+PURITY RULES:
+- Output valid JSON only.
+- No markdown, no code fences, no explanation outside JSON.
+- Do not return fewer or more than 3 objects.
+- Use each chart type exactly once.
+
+IMPORTANT:
+- `pie` charts must use `name_key` and `value_key`.
+- `bar` and `line` charts must use `x_key` and `y_key`.
+- The keys in `chart_config` must exactly match the SQL output column aliases.
+- Keep column aliases frontend-friendly and descriptive.
+
+Now analyze the schema and generate the chart specifications.
+schema: {content}
+  """
+
+
+def get_chart_specs_oip_prompt(content):
+  return f"""
+You are a senior product analyst and travel-domain expert.
+
+Your task is to analyze the OIP warehouse schema and generate chart-ready SQL for a frontend using Recharts.
+
+CONTEXT:
+- The database belongs to a travel management company.
+- It contains OIP entities such as accounts, customers, opportunities, projects, countries, country_details, solutions, service_config, decision_sources, and SRQ requests.
+- The frontend needs three visualizations: one pie chart, one bar chart, and one line chart.
+
+OBJECTIVE:
+1. Identify three high-value business views for a stakeholder.
+2. Generate exactly one chart definition for each chart type: `pie`, `bar`, and `line`.
+3. Each chart must return a compact, business-readable dataset suitable for direct use in Recharts.
+
+SQL RULES:
+- Use only tables and columns present in the supplied schema.
+- Return human-readable names, never raw UUIDs or opaque IDs.
+- Keep result shapes simple and chart-friendly.
+- Prefer aggregated datasets with clear dimensions and metrics.
+- For line charts, use a natural ordered axis if possible (date, month, year, or other sequential category).
+- Each SQL query must be a single safe `SELECT` or `WITH` statement.
+- If a query uses country foreign keys, join `countries` and return country names.
+- If a query uses customer, account, solution, project, or service configuration foreign keys, join and return human-readable columns.
+
+OUTPUT FORMAT (STRICT):
+
+Return a JSON array with exactly 3 objects in this format:
+
+[
+  {{
+    "chart_title": "Short chart title",
+    "chart_description": "Why the chart matters",
+    "chart_type": "pie",
+    "chart_config": {{
+      "name_key": "dimension_column",
+      "value_key": "metric_column"
+    }},
+    "sql": "SQL query here"
+  }},
+  {{
+    "chart_title": "Short chart title",
+    "chart_description": "Why the chart matters",
+    "chart_type": "bar",
+    "chart_config": {{
+      "x_key": "dimension_column",
+      "y_key": "metric_column"
+    }},
+    "sql": "SQL query here"
+  }},
+  {{
+    "chart_title": "Short chart title",
+    "chart_description": "Why the chart matters",
+    "chart_type": "line",
+    "chart_config": {{
+      "x_key": "ordered_dimension_column",
+      "y_key": "metric_column"
+    }},
+    "sql": "SQL query here"
+  }}
+]
+
+PURITY RULES:
+- Output valid JSON only.
+- No markdown, no code fences, no explanation outside JSON.
+- Do not return fewer or more than 3 objects.
+- Use each chart type exactly once.
+
+IMPORTANT:
+- `pie` charts must use `name_key` and `value_key`.
+- `bar` and `line` charts must use `x_key` and `y_key`.
+- The keys in `chart_config` must exactly match the SQL output column aliases.
+- Keep column aliases frontend-friendly and descriptive.
+
+Now analyze the schema and generate the chart specifications.
+schema: {content}
+  """
