@@ -110,7 +110,7 @@ def llm_secondary_router_vote(user_message: str, snapshot: RetrievalSnapshot) ->
         oip_distance=str(snapshot.oip_best_distance),
     )
     rsp = client.chat.completions.create(
-        model="gpt-4o-mini",
+        model=config.AZURE_OPENAI_CHAT_DEPLOYMENT,
         messages=[
             {
                 "role": "system",

@@ -1,1 +1,7 @@
-from .openai_config import OpenAIClient
+from .openai_config import (
+    OpenAIClient,
+    AZURE_OPENAI_ENDPOINT,
+    AZURE_OPENAI_API_VERSION,
+    AZURE_OPENAI_CHAT_DEPLOYMENT,
+    AZURE_OPENAI_EMBEDDING_DEPLOYMENT,
+)

@@ -330,7 +330,7 @@ class AgentService:
     ):
         sql_cur = sql
         last_err = ""
-
+        print(sql)
         for attempt in range(MAX_SQL_REPAIR_ATTEMPTS + 1):
             try:
                 rsp = db.execute(text(sql_cur))

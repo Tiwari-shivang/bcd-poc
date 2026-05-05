@@ -9,6 +9,8 @@ from helpers import prompts
 from helpers.sql_normalizer import normalize_enum_literals
 
 ai_client = config.OpenAIClient
+chat_model = config.AZURE_OPENAI_CHAT_DEPLOYMENT
+embedding_model = config.AZURE_OPENAI_EMBEDDING_DEPLOYMENT
 
 
 def _to_json_string(payload) -> str:
@@ -78,7 +80,7 @@ def llm_response(
     apply_enum_normaliser: bool = True,
 ):
     response = ai_client.chat.completions.create(
-        model="gpt-4o-mini",
+        model=chat_model,
         messages=[
             {"role": "system", "content": ""},
             {
@@ -112,7 +114,7 @@ def llm_fix_response(
 ):
     """Ask the LLM to repair a SQL query that failed at execution time."""
     response = ai_client.chat.completions.create(
-        model="gpt-4o-mini",
+        model=chat_model,
         messages=[
             {"role": "system", "content": ""},
             {
@@ -135,7 +137,7 @@ def llm_fix_response(
 async def generate_embeddings(content: str):
     embeddings = ai_client.embeddings.create(
         input=content,
-        model="text-embedding-3-small"
+        model=embedding_model
     )
     return embeddings
 
@@ -190,7 +192,7 @@ def generate_normalized_llm_response(data, user_query, last_context: list | None
     data_json = _to_json_string(render_data)
 
     response = ai_client.chat.completions.create(
-        model="gpt-4o-mini",
+        model=chat_model,
         messages=[
             {"role": "system", "content": ""},
             {
@@ -209,7 +211,7 @@ def generate_normalized_llm_response(data, user_query, last_context: list | None
 def get_insights_salesforce(content):
     insights_prompt = prompts.get_insights_salesforce_prompt(content)
     response = ai_client.chat.completions.create(
-        model="gpt-4o-mini",
+        model=chat_model,
         messages=[
             {"role": "system", "content": ""},
             {
@@ -226,7 +228,7 @@ def get_insights_salesforce(content):
 def get_insights_oip(content):
     insights_prompt = prompts.get_insights_oip_prompt(content)
     response = ai_client.chat.completions.create(
-        model="gpt-4o-mini",
+        model=chat_model,
         messages=[
             {"role": "system", "content": ""},
             {
@@ -243,7 +245,7 @@ def get_insights_oip(content):
 def get_chart_specs_salesforce(content):
     chart_prompt = prompts.get_chart_specs_salesforce_prompt(content)
     response = ai_client.chat.completions.create(
-        model="gpt-4o-mini",
+        model=chat_model,
         messages=[
             {"role": "system", "content": ""},
             {
@@ -260,7 +262,7 @@ def get_chart_specs_salesforce(content):
 def get_chart_specs_oip(content):
     chart_prompt = prompts.get_chart_specs_oip_prompt(content)
     response = ai_client.chat.completions.create(
-        model="gpt-4o-mini",
+        model=chat_model,
         messages=[
             {"role": "system", "content": ""},
             {
