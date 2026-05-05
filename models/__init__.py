@@ -9,3 +9,15 @@ from .permission_model import PermissionModel
 from .owner_permissions_model import OwnerPermissionsModel
 from .program_sol_model import ProgramSolModel
 from .tool_service_model import ToolServiceModel
+from .oip_models import (
+    OIPAccountModel,
+    OIPCustomerModel,
+    OIPOpportunityModel,
+    OIPCountryModel,
+    OIPCountryDetailsModel,
+    OIPProjectModel,
+    OIPDecisionSourceModel,
+    OIPServiceConfigModel,
+    OIPSolutionModel,
+    OIPSRQRequestModel,
+)

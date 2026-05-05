@@ -24,6 +24,7 @@ if not DB_URL_VECTOR:
 engine = create_engine(DB_URL)
 session = sessionmaker(bind=engine, autocommit=False, autoflush=False)
 BaseModel = declarative_base()
+OIPBase = declarative_base()
 
 vector_engine = create_engine(DB_URL_VECTOR)
 session_vector = sessionmaker(

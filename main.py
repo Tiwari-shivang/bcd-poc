@@ -12,6 +12,7 @@ import models  # noqa: F401 — register ORM mappers before create_all
 import controllers
 from database import (
     BaseModel,
+    OIPBase,
     VectorBase,
     engine,
     engine_oip,
@@ -69,6 +70,7 @@ async def startup():
         BaseModel.metadata.create_all(bind=engine)
 
         if engine_oip is not None:
+            OIPBase.metadata.create_all(bind=engine_oip)
             engine_oip.connect()
             print("OIP execution DB connected")
 
