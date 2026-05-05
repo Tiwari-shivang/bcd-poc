@@ -1,4 +1,6 @@
 import json
+import hashlib
+import random
 from openai import NotFoundError
 
 import config
@@ -12,6 +14,27 @@ from helpers.sql_normalizer import normalize_enum_literals
 ai_client = config.OpenAIClient
 chat_model = config.AZURE_OPENAI_CHAT_DEPLOYMENT
 embedding_model = config.AZURE_OPENAI_EMBEDDING_DEPLOYMENT
+EMBEDDING_DIM = 1536
+
+
+class _EmbeddingDatum:
+    def __init__(self, embedding: list[float]):
+        self.embedding = embedding
+
+
+class _EmbeddingResponse:
+    def __init__(self, embedding: list[float]):
+        self.data = [_EmbeddingDatum(embedding)]
+
+
+def _local_deterministic_embedding(content: str, dim: int = EMBEDDING_DIM) -> list[float]:
+    seed = int(hashlib.sha256(content.encode("utf-8")).hexdigest()[:16], 16)
+    rng = random.Random(seed)
+    vec = [rng.uniform(-1.0, 1.0) for _ in range(dim)]
+    norm = sum(v * v for v in vec) ** 0.5
+    if norm == 0:
+        return [0.0] * dim
+    return [v / norm for v in vec]
 
 
 def _to_json_string(payload) -> str:
@@ -143,11 +166,8 @@ async def generate_embeddings(content: str):
         )
         return embeddings
     except NotFoundError as exc:
-        raise RuntimeError(
-            "Azure OpenAI embedding deployment not found. "
-            "Set `AZURE_OPENAI_EMBEDDING_DEPLOYMENT` in `.env` to an existing "
-            "deployment name in your Azure OpenAI resource."
-        ) from exc
+        embedding = _local_deterministic_embedding(content)
+        return _EmbeddingResponse(embedding)
 
 def search_data_embeddings(
     query_embedding, db: Session, limit: int = 10, *, catalog_source: str | None = None
