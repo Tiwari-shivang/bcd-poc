@@ -1,4 +1,5 @@
 import json
+from openai import NotFoundError
 
 import config
 import DTOs
@@ -135,11 +136,18 @@ def llm_fix_response(
     return fixed
 
 async def generate_embeddings(content: str):
-    embeddings = ai_client.embeddings.create(
-        input=content,
-        model=embedding_model
-    )
-    return embeddings
+    try:
+        embeddings = ai_client.embeddings.create(
+            input=content,
+            model=embedding_model
+        )
+        return embeddings
+    except NotFoundError as exc:
+        raise RuntimeError(
+            "Azure OpenAI embedding deployment not found. "
+            "Set `AZURE_OPENAI_EMBEDDING_DEPLOYMENT` in `.env` to an existing "
+            "deployment name in your Azure OpenAI resource."
+        ) from exc
 
 def search_data_embeddings(
     query_embedding, db: Session, limit: int = 10, *, catalog_source: str | None = None
