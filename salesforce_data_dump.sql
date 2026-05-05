@@ -400,15 +400,7 @@ INSERT INTO accounts (id, name, is_deleted, billing_address, shipping_address, p
 ('00120000005Q5cZAAS', 'Caterpillar', FALSE, '100 NE Adams St., Peoria, Illinois, 61629, United States', '100 NE Adams St., Peoria, Illinois, 61629, United States', '(309) 675-1000', NULL, '00520000000nknYAAQ', '2007-04-29 17:09:10', '2026-04-06', '00520000000nklqAAA', '0057T000002fRltQAE', '0052X000007p124QAA', NULL, '0057T000002gaORQAY', '00520000000nknYAAQ', '00520000001mFHLAA2', '005w0000003DEP8AAO', '00520000000nknYAAQ', '00520000000nknYAAQ', 'Teri Miller', 'Client', 'Client', 'Client', '142', 'Machinery'),
 ('00120000005lL8wAAE', 'Omnicom Group', FALSE, '[object Object]', '[object Object]', '+44 20 7298 7037', NULL, '00520000000nkmoAAA', '2007-06-14 16:21:10', '2026-04-02', '00520000000ndcrAAA', '005bG00000KQnw3QAD', '0057R00000Bor2IQAR', NULL, '00520000000ndcrAAA', NULL, '00520000003Bc09AAC', '00520000003Bc09AAC', '00520000000nkmoAAA', '00520000000nkmoAAA', 'Kathy Bedell', 'Client', 'Client', 'Client', '209', 'Media, News & Publishing'),
 ('0012000000QcjLtAAJ', 'FedEx Corporation', FALSE, '942 S. Shady Grove Rd., Memphis, Tennessee, 38120, United States', '942 S. Shady Grove Rd., Memphis, Tennessee, 38120, United States', '(901) 818-7500', '(901) 395-2000', '005w0000005g2pkAAA', '2007-04-29 17:09:10', '2026-04-08', '00520000000nklqAAA', '0057T000002fRltQAE', '0052X000007p124QAA', NULL, '00520000001lQO2AAM', '00520000001l0MNAAY', '0057R00000BovM2QAJ', '005w000000477ZBAAY', '0057R00000BorP7QAJ', '005w0000005g2pkAAA', 'Celeste Szajdek', 'Prospect', 'Client', 'Client', '78', 'Freight & Logistics'),
-('0012000000yq2UmAAI', 'Volkswagen', FALSE, 'Volkswagen Aktiengesellschaft
-Leitung Konzern Travel Management
-Allgemeine Beschaffung
-K-BA-DT
-Brieffach 011/1616, Wolfsburg, Niedersachsen, 38436, Germany', 'Volkswagen Aktiengesellschaft
-Leitung Konzern Travel Management
-Allgemeine Beschaffung
-K-BA-DT
-Brieffach 011/1616, Wolfsburg, Niedersachsen, 38436, Germany', '02 9695 6049', '+55 (11) 4347-2446', '0057T000001yYO7QAM', '2005-06-21 14:38:34', '2026-04-05', '00520000000hHCWAA2', '005bG00000KQnw3QAD', '005w0000003CjnwAAC', NULL, '00520000000pua9AAA', '00520000001l0GjAAI', '0052X000007p8L8QAI', NULL, '0057R00000AKywUQAT', '0057T000001yYO7QAM', 'Stephan Baars', 'Client', 'Client', 'Client', '248', 'Automobiles & Components');
+('0012000000yq2UmAAI', 'Volkswagen', FALSE, 'Volkswagen Aktiengesellschaft, Leitung Konzern Travel Management, Allgemeine Beschaffung, K-BA-DT, Brieffach 011/1616, Wolfsburg, Niedersachsen, 38436, Germany', 'Volkswagen Aktiengesellschaft, Leitung Konzern Travel Management, Allgemeine Beschaffung, K-BA-DT, Brieffach 011/1616, Wolfsburg, Niedersachsen, 38436, Germany', '02 9695 6049', '+55 (11) 4347-2446', '0057T000001yYO7QAM', '2005-06-21 14:38:34', '2026-04-05', 'Stephan Baars', 'Mishra SI', 'Sylvie Lemlin', 'Courtney Moore', 'Sylvie Lemlin', '0057T000001yYO7QAM', '0052X000007p8L8QAI', '00520000000pua9AAA', '0057T000001yYO7QAM', '00520000001l0GjAAI', '0057R00000AKywUQAT', 'Client', 'Client', 'Client', 30, 'Automobiles & Components');
 
 INSERT INTO gcn (id, account_id, status, client_name, case_number, is_me_gcn, client_exp_years) VALUES
 ('a2a2X000002XC5fQAG', '00120000000lQNXAA2', 'ZZ Archived', 'SIEMENS HACON', '3130932', FALSE, 0),
