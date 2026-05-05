@@ -408,7 +408,7 @@ INSERT INTO opportunities (id, name, sf_case_safe_id, sales_category, record_typ
 ('a147e519-bb36-5acb-9ba3-5ba11520e6cd', 'P002968 FEDEX-3160', 'UNKNOWN_CASE', 'Unknown', 'Unknown', 'P', '1970-01-01 00:00:00', '2fdfa91f-6d9e-5e67-a645-2625b81632a7', 'c303c080-c5f3-5207-973c-fcaed3fc68d3'),
 ('a9fc3575-a856-5226-95fd-8ce8024fd31f', 'P003412 SIEMENS-1650', 'UNKNOWN_CASE', 'Unknown', 'Unknown', 'P', '1970-01-01 00:00:00', '5ad3a0ba-a715-5e47-91c2-3ba4e6ff9ec3', '6feb13c2-6c42-541a-b7cc-0d6febb6df04'),
 ('aa4129d4-1829-52fa-b82d-524fcb153328', 'P002236 FEDEX-3160 MOVE TO CONTACT CENTER PLATFORM', 'UNKNOWN_CASE', 'Unknown', 'Unknown', 'P', '1970-01-01 00:00:00', '2fdfa91f-6d9e-5e67-a645-2625b81632a7', 'c303c080-c5f3-5207-973c-fcaed3fc68d3'),
-('b09fdf04-6686-5bd5-836d-34766d7905bf', 'Unknown Opportunity', 'UNKNOWN_CASE', 'Unknown', 'Unknown', 'Unknown', '1970-01-01 00:00:00', '178abb91-147f-54d4-ae37-f210cb8e21b4', '6b97669a-4ef1-5648-ad2d-37e44670f324'),
+('b09fdf04-6686-5bd5-836d-34766d7905bf', 'Unknown Opportunity', 'UNKNOWN_CASE', 'Unknown', 'Unknown', 'Unknown', '1970-01-01 00:00:00', '178abb91-147f-54d4-ae37-f210cb8e21b4', '5ff45661-e3f6-5d89-ba8c-dd4fdf7c0d45'),
 ('b628394f-92e6-5f76-b7c8-3400090601d6', 'P001191 SIEMENS-1650', 'UNKNOWN_CASE', 'Unknown', 'Unknown', 'P', '1970-01-01 00:00:00', '5ad3a0ba-a715-5e47-91c2-3ba4e6ff9ec3', '6feb13c2-6c42-541a-b7cc-0d6febb6df04'),
 ('bba5c5f2-8418-5c09-91e0-63637a359408', 'P003727 SIEMENS-1650', 'UNKNOWN_CASE', 'Unknown', 'Unknown', 'P', '1970-01-01 00:00:00', '5ad3a0ba-a715-5e47-91c2-3ba4e6ff9ec3', '6feb13c2-6c42-541a-b7cc-0d6febb6df04'),
 ('c1a6d4ba-3ecb-59a2-9d32-6276214f421e', 'P001767 SIEMENS-1650', 'UNKNOWN_CASE', 'Unknown', 'Unknown', 'P', '1970-01-01 00:00:00', '5ad3a0ba-a715-5e47-91c2-3ba4e6ff9ec3', '6feb13c2-6c42-541a-b7cc-0d6febb6df04'),
@@ -421,7 +421,7 @@ INSERT INTO opportunities (id, name, sf_case_safe_id, sales_category, record_typ
 ('f0664ccb-b972-53ef-bbe5-6c28ed157618', 'T002521 P003477 TNT-2340 UPDATE PL SERVICE CONFIG', 'TNT', 'Unknown', 'Unknown', 'P', '1970-01-01 00:00:00', '2fdfa91f-6d9e-5e67-a645-2625b81632a7', '5ff45661-e3f6-5d89-ba8c-dd4fdf7c0d45'),
 ('f4951db2-bce9-5251-8707-7df685725770', 'P002720 TNT-2340', 'UNKNOWN_CASE', 'Unknown', 'Unknown', 'P', '1970-01-01 00:00:00', '2fdfa91f-6d9e-5e67-a645-2625b81632a7', '5ff45661-e3f6-5d89-ba8c-dd4fdf7c0d45'),
 ('fa2cd839-6a3a-5ac7-8c3b-aeffc93a810b', 'P001207 FEDEX-3160', 'UNKNOWN_CASE', 'Unknown', 'Unknown', 'P', '1970-01-01 00:00:00', '2fdfa91f-6d9e-5e67-a645-2625b81632a7', 'c303c080-c5f3-5207-973c-fcaed3fc68d3'),
-('fb630174-1e00-50af-810c-ee02f66070b6', 'Unknown Opportunity', 'UNKNOWN_CASE', 'Unknown', 'Unknown', 'Unknown', '1970-01-01 00:00:00', 'c010238c-937b-5334-8aa9-25dfee063339', '6b97669a-4ef1-5648-ad2d-37e44670f324');
+('fb630174-1e00-50af-810c-ee02f66070b6', 'Unknown Opportunity', 'UNKNOWN_CASE', 'Unknown', 'Unknown', 'Unknown', '1970-01-01 00:00:00', 'c010238c-937b-5334-8aa9-25dfee063339', '5ff45661-e3f6-5d89-ba8c-dd4fdf7c0d45');
 
 INSERT INTO country_details (id, case_safe_id, ticketing_country_id, servicing_country_id, invoicing_agency, servicing_agency, created_at) VALUES
 ('004135c7-0269-58d7-8162-5a545eb63874', 'Implemented', 'aa331117-b762-5f30-b599-03c980522b70', '77bb3cdb-8e80-5c99-963e-b3e3befe7cfc', 'Argentina (AR)', 'BCD Argentina (AH)', '1970-01-01 00:00:00'),
