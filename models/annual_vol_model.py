@@ -23,6 +23,9 @@ class AnnualVolModel(BaseModel):
     car_transaction = Column(Integer)
     car_vol = Column(Numeric)
 
+    hotel_transaction = Column(Integer)
+    hotel_vol = Column(Numeric)
+
     currency_iso_code = Column(CHAR(5))
 
     country = relationship("CountryDetailsModel", foreign_keys=[country_id], back_populates="annual_volumes")

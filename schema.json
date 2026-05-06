@@ -1,0 +1,160 @@
+[
+  {
+    "table": "accounts",
+    "columns": [
+      {"name": "id", "type": "varchar(36)", "is_pk": true},
+      {"name": "name", "type": "varchar(100)"},
+      {"name": "is_deleted", "type": "boolean"},
+      {"name": "billing_address", "type": "text"},
+      {"name": "shipping_address", "type": "text"},
+      {"name": "phone", "type": "varchar(15)"},
+      {"name": "fax", "type": "text"},
+      {"name": "owner_id", "type": "varchar(36)", "is_fk": true, "references": "owners.id"},
+      {"name": "created_at", "type": "timestamp"},
+      {"name": "last_activity", "type": "date"},
+      {"name": "national_svp", "type": "char(36)", "is_fk": true, "references": "owners.id"},
+      {"name": "hotel_sol_business_owner", "type": "char(36)", "is_fk": true, "references": "owners.id"},
+      {"name": "advito_business_owner", "type": "char(36)", "is_fk": true, "references": "owners.id"},
+      {"name": "me_business_owner", "type": "char(36)", "is_fk": true, "references": "owners.id"},
+      {"name": "bcd_business_owner", "type": "char(36)", "is_fk": true, "references": "owners.id"},
+      {"name": "latam_ram", "type": "char(36)", "is_fk": true, "references": "owners.id"},
+      {"name": "emea_ram", "type": "char(36)", "is_fk": true, "references": "owners.id"},
+      {"name": "apac_ram", "type": "char(36)", "is_fk": true, "references": "owners.id"},
+      {"name": "na_ram", "type": "char(36)", "is_fk": true, "references": "owners.id"},
+      {"name": "global_account_manager", "type": "char(36)", "is_fk": true, "references": "owners.id"},
+      {"name": "global_executive_sponsor", "type": "char(36)", "is_fk": true, "references": "owners.id"},
+      {"name": "advito_client_status", "type": "enum", "values": ["Client", "Prospect", "N/A"]},
+      {"name": "me_client_status", "type": "enum", "values": ["Client", "Prospect", "N/A"]},
+      {"name": "bcd_client_status", "type": "enum", "values": ["Client", "Prospect", "N/A"]},
+      {"name": "opportunity_count", "type": "integer"},
+      {"name": "industry", "type": "text"}
+    ]
+  },
+  {
+    "table": "agreements",
+    "columns": [
+      {"name": "id", "type": "varchar(36)", "is_pk": true},
+      {"name": "name", "type": "varchar(100)"},
+      {"name": "account_id", "type": "varchar(36)", "is_fk": true, "references": "accounts.id"},
+      {"name": "gcn_id", "type": "varchar(36)", "is_fk": true, "references": "gcn.id"},
+      {"name": "contract_type", "type": "enum", "values": ["Single Country", "Global", "National Agreement", "Multinational", "Regional", "Regional Agreement", "Local Agreement"]},
+      {"name": "region", "type": "text"},
+      {"name": "status", "type": "enum", "values": ["Closed Consolidated", "Lost", "Pending Contract", "Signed and Finalized", "Servicing Without a Contract"]},
+      {"name": "effective_date", "type": "date"},
+      {"name": "agreement_end_date", "type": "date"},
+      {"name": "agreement_vp", "type": "varchar(36)", "is_fk": true, "references": "owners.id"},
+      {"name": "owner_id", "type": "varchar(36)", "is_fk": true, "references": "owners.id"},
+      {"name": "renewal_terms", "type": "enum", "values": ["N/A", "By Agreement Only", "Automatic Renewal", "Evergreen"]}
+    ]
+  },
+  {
+    "table": "annual_vol",
+    "columns": [
+      {"name": "id", "type": "char(36)", "is_pk": true},
+      {"name": "name", "type": "text"},
+      {"name": "country_id", "type": "char(36)", "is_fk": true, "references": "countries.id"},
+      {"name": "agreement_id", "type": "char(36)", "is_fk": true, "references": "agreements.id"},
+      {"name": "air_transaction", "type": "integer"},
+      {"name": "air_vol", "type": "numeric"},
+      {"name": "train_transaction", "type": "integer"},
+      {"name": "train_vol", "type": "numeric"},
+      {"name": "car_transaction", "type": "integer"},
+      {"name": "car_vol", "type": "numeric"},
+      {"name": "hotel_transaction", "type": "integer"},
+      {"name": "hotel_vol", "type": "numeric"},
+      {"name": "currency_iso_code", "type": "char(5)"}
+    ]
+  },
+  {
+    "table": "countries",
+    "columns": [
+      {"name": "id", "type": "varchar(36)", "is_pk": true},
+      {"name": "agreement_id", "type": "varchar(36)", "is_fk": true, "references": "agreements.id"},
+      {"name": "name", "type": "text"},
+      {"name": "region", "type": "text"},
+      {"name": "country_status", "type": "enum", "values": ["Implemented", "In Scope", "De-Implemented", "Pending De-implementation", "In Vetting"]},
+      {"name": "booking_country", "type": "text"},
+      {"name": "ticket_country", "type": "text"}
+    ]
+  },
+  {
+    "table": "gcn",
+    "columns": [
+      {"name": "id", "type": "varchar(36)", "is_pk": true},
+      {"name": "account_id", "type": "varchar(36)", "is_fk": true, "references": "accounts.id"},
+      {"name": "status", "type": "enum", "values": ["ZZ Archived", "Active"]},
+      {"name": "client_name", "type": "text"},
+      {"name": "case_number", "type": "text"},
+      {"name": "is_me_gcn", "type": "boolean"},
+      {"name": "client_exp_years", "type": "integer"}
+    ]
+  },
+  {
+    "table": "owner_permissions",
+    "columns": [
+      {"name": "owner_id", "type": "varchar(36)", "is_pk": true, "is_fk": true, "references": "owners.id"},
+      {"name": "permission_id", "type": "varchar(36)", "is_pk": true, "is_fk": true, "references": "permissions.id"}
+    ]
+  },
+  {
+    "table": "owners",
+    "columns": [
+      {"name": "id", "type": "varchar(36)", "is_pk": true},
+      {"name": "name", "type": "text"},
+      {"name": "role", "type": "text"},
+      {"name": "alias", "type": "text"},
+      {"name": "license", "type": "text"},
+      {"name": "email", "type": "text"},
+      {"name": "email_status", "type": "boolean"},
+      {"name": "profile", "type": "text"},
+      {"name": "username", "type": "text"},
+      {"name": "company", "type": "enum", "values": ["BCD Travel", "Advito", "EMEA"]},
+      {"name": "time_zone", "type": "timestamp"},
+      {"name": "division", "type": "text"},
+      {"name": "locale", "type": "text"},
+      {"name": "manager", "type": "text"},
+      {"name": "mobile", "type": "varchar(15)"},
+      {"name": "last_login", "type": "timestamp"},
+      {"name": "created_by", "type": "text"},
+      {"name": "cost_center", "type": "numeric"},
+      {"name": "ownership_type", "type": "text"},
+      {"name": "me_sales_goal_usd", "type": "numeric"},
+      {"name": "is_frozen", "type": "boolean"},
+      {"name": "created_at", "type": "timestamp"}
+    ]
+  },
+  {
+    "table": "permissions",
+    "columns": [
+      {"name": "id", "type": "varchar(36)", "is_pk": true},
+      {"name": "name", "type": "text"}
+    ]
+  },
+  {
+    "table": "program_sol",
+    "columns": [
+      {"name": "id", "type": "char(36)", "is_pk": true},
+      {"name": "name", "type": "text"},
+      {"name": "country_id", "type": "char(36)", "is_fk": true, "references": "countries.id"},
+      {"name": "product_type", "type": "text"},
+      {"name": "status", "type": "enum", "values": ["Implemented", "De-Implemented", "In Scope", "In Vetting", "Never Implemented"]},
+      {"name": "trial_exp_date", "type": "date"},
+      {"name": "tool_service_id", "type": "char(36)", "is_fk": true, "references": "tool_service.id"},
+      {"name": "agreement_id", "type": "char(36)", "is_fk": true, "references": "agreements.id"}
+    ]
+  },
+  {
+    "table": "tool_service",
+    "columns": [
+      {"name": "id", "type": "char(36)", "is_pk": true},
+      {"name": "product_delivery", "type": "text"},
+      {"name": "product_marketer", "type": "char(36)", "is_fk": true, "references": "owners.id"},
+      {"name": "product_category", "type": "text"},
+      {"name": "name", "type": "text"},
+      {"name": "tool_status", "type": "enum", "values": ["Active", "Inactive", "In Development"]},
+      {"name": "availability_loc", "type": "enum", "values": ["Ticketing", "Booking", "Customer"]},
+      {"name": "product_type", "type": "text"},
+      {"name": "description", "type": "text"}
+    ]
+  }
+]

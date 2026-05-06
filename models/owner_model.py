@@ -11,38 +11,37 @@ class OwnerModel(BaseModel):
 
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
 
-    name = Column(TEXT, nullable=False)
-    role = Column(TEXT, nullable=False)
-    alias = Column(TEXT, nullable=False)
-    license = Column(TEXT, nullable=False)
+    name = Column(TEXT)
+    role = Column(TEXT)
+    alias = Column(TEXT)
+    license = Column(TEXT)
 
-    email = Column(TEXT, unique=True, nullable=False)
-    email_status = Column(Boolean, nullable=False)
+    email = Column(TEXT)
+    email_status = Column(Boolean)
 
     profile = Column(TEXT)
-    username = Column(TEXT, unique=True)
+    username = Column(TEXT)
 
-    company = Column(Enum(*COMPANY_ENUM, name="company_enum"), nullable=False)
+    company = Column(Enum(*COMPANY_ENUM, name="company_enum"))
     time_zone = Column(TIMESTAMP(timezone=True))
 
     division = Column(TEXT)
     locale = Column(TEXT)
 
     manager = Column(TEXT)
-    mobile = Column(VARCHAR(10))
+    mobile = Column(VARCHAR(15))
 
     last_login = Column(TIMESTAMP)
     created_by = Column(TEXT)
 
     cost_center = Column(Numeric)
 
-    user_division = Column(Enum(*COMPANY_ENUM, name="user_division_enum"), nullable=False)
     ownership_type = Column(TEXT)
 
     me_sales_goal_usd = Column(Numeric)
 
-    is_frozen = Column(Boolean, nullable=False, server_default=sa_text("FALSE"))
-    created_at = Column(TIMESTAMP, nullable=False, server_default=sa_text("CURRENT_TIMESTAMP"))
+    is_frozen = Column(Boolean, server_default=sa_text("FALSE"))
+    created_at = Column(TIMESTAMP, server_default=sa_text("CURRENT_TIMESTAMP"))
 
     owned_accounts = relationship("AccountModel", foreign_keys="AccountModel.owner_id", back_populates="owner")
     national_svp_accounts = relationship("AccountModel", foreign_keys="AccountModel.national_svp", back_populates="national_svp_owner")

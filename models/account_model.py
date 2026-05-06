@@ -17,7 +17,7 @@ class AccountModel(BaseModel):
     billing_address = Column(TEXT)
     shipping_address = Column(TEXT)
 
-    phone = Column(VARCHAR(10))
+    phone = Column(VARCHAR(15))
     fax = Column(TEXT)
 
     owner_id = Column(String(36), ForeignKey("owners.id", name="fk_accounts_owner"))
