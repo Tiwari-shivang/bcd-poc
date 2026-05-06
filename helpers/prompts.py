@@ -63,9 +63,8 @@ self-contained mini-card a chat assistant would attach to its reply.
     title + summary + data. This container is the "card".
   - The card MUST be width-flexible: `width: 100%; max-width: 720px;`
     and `box-sizing: border-box;`.
-  - The card MUST have a subtle border (`1px solid #d6e6f5` or similar
-    light blue), `border-radius: 8px`, and modest interior padding
-    (around `12px 14px`).
+  - The card MUST NOT have any visible border. Keep it clean, with
+    `border: none;` and modest interior padding (around `12px 14px`).
   - Use a soft `box-shadow` (e.g. `0 1px 2px rgba(0,0,0,0.06)`) for a
     light "card" feel. Keep it minimal — this is a chat bubble, not a
     landing page.
@@ -91,10 +90,9 @@ self-contained mini-card a chat assistant would attach to its reply.
 - Color rule is STRICT:
   - The default page/card background colour is white (`#ffffff`) or
     transparent so the chat container shows through naturally.
-  - If you use ANY non-default background colour anywhere — for the
-    card, table headers, summary tint, hover/zebra rows, etc. — it
-    MUST be `#8FC9FF` (no other background colours allowed). Use it
-    sparingly so it stays elegant, not loud.
+  - Do NOT apply any background colour to headings or table headers.
+  - Keep styling minimal and ChatGPT-like: clean white surface, subtle
+    text hierarchy, no heavy decorative color blocks.
 - Include a clear title inside the card (derived from the user request),
   but do not repeat the entire user request verbatim.
 - The HTML must be formed according to the JSON structure:
@@ -140,9 +138,8 @@ Mandatory rules:
   "raw_data", or any other implementation term.
 - Tone: friendly, helpful, professional — like a colleague's chat reply.
   Keep it short. Avoid corporate jargon and filler.
-- Typography rules apply: 14px font, left-aligned. If you visually
-  separate the summary from the table with a background tint, it MUST
-  be `#8FC9FF` (no other colour).
+- Typography rules apply: 14px font, left-aligned. Do NOT use background
+  tint behind summary or heading areas.
 
 Good example (adapt to actual data — never copy verbatim):
   <section class="summary">
@@ -203,8 +200,13 @@ matching rule wins — do not consider lower rules once one matches.
 - Render a compact, chat-friendly table inside the card.
 - Wrap the `<table>` in a `<div style="overflow-x:auto">` so wide tables
   scroll horizontally inside the chat bubble instead of overflowing it.
-- Use `border-collapse: collapse;` and a thin `1px` border in a soft
-  neutral or `#8FC9FF` tint. Padding around `8px 10px` per cell.
+- Use `border-collapse: collapse;` and bottom-only rules:
+  - No outer table border.
+  - No left/right/top borders on table cells.
+  - Keep only bottom border separators (`border-bottom`) for rows/cells.
+  - Table header cells must be bold text only, with NO border and NO background color.
+  - Keep a single subtle bottom border for the whole table.
+  - Padding around `8px 10px` per cell.
 - Table columns MUST be derived from the union of keys across objects,
   preserving a stable order: key order from the first object, then any
   new keys appended later.
@@ -213,8 +215,8 @@ matching rule wins — do not consider lower rules once one matches.
   every value matches the UUID pattern.
 - Header labels MUST be human-friendly (e.g., `leaves_count` → `Leaves
   Count`, `agreement_end_date` → `Agreement End Date`). Header cells
-  may use `font-weight: 600` and a subtle `#8FC9FF` background tint.
-  Do NOT use sticky positioning.
+  must use bold text (`font-weight: 600` or `700`) with no border and
+  no background color. Do NOT use sticky positioning.
 - Cell values:
   - `null` / missing: show an em dash (—).
   - booleans: show `Yes` / `No`.
@@ -252,9 +254,8 @@ matching rule wins — do not consider lower rules once one matches.
     same grid alignment. Do **not** use a one-column bullet list.
 
 **Visual polish (still chat-safe):**
-- Give `detail-sheet` a **subtle left accent**: `border-left: 3px solid #8FC9FF;`
-  and `padding-left: 12px;` (or full `padding: 10px 12px;` with very light `#8FC9FF`
-  `background` at ~12% opacity if you can express it — e.g. `rgba` approximating tint).
+- Keep non-table content borderless (`border: none` on wrappers/sections/cards).
+- Use spacing and typography (not borders/background fills) to create structure.
 - Rows: optional zebra using **only** alternating white / `#f5fafe` (still in the `#8FC9FF`
   family) for `.kv-row` — keep contrast low.
 - **Primary value emphasis**: if exactly one scalar field is obviously the main answer (e.g.
@@ -655,6 +656,14 @@ QUERY QUALITY RULES
      apply it to numeric, boolean, date, or `IS NULL` / `IS NOT NULL` checks,
      and do NOT replace `ILIKE` / pattern matches with `IN`.
 
+18b. LIST-REQUEST ROW LIMIT (STRICT):
+     - If the user intent is to list/show/find/get/display records (non-aggregate
+       tabular retrieval), you MUST append `LIMIT 15` to the query.
+     - This applies to every generated list query unless the user explicitly asks
+       for fewer rows.
+     - Do NOT force `LIMIT 15` on pure aggregate answers that return a single
+       computed row (e.g. COUNT/SUM/AVG only).
+
 -----------------------
 SECURITY RULES
 -----------------------
@@ -803,6 +812,9 @@ QUERY QUALITY RULES
 22. Avoid unnecessary columns, joins, or complexity.
 23. Preserve the exact intent of the USER QUESTION.
 24. Do NOT drop required filters or logic.
+25. If the USER QUESTION is a list/show/find/get/display style request
+    (non-aggregate retrieval), enforce `LIMIT 15` unless the user explicitly
+    asks for fewer rows.
 
 ----------------------------------
 SCHEMA CONTEXT
