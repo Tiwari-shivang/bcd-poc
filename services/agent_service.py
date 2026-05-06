@@ -30,9 +30,30 @@ OIP_CATALOG_MISSING_MESSAGE = (
 )
 
 
+def _paragraph_response(
+    message: str,
+    *,
+    heading: str = "Response",
+    sub_heading: str = "Here is what I found.",
+    follow_up: str = "Would you like me to refine this further?",
+) -> dict[str, Any]:
+    return {
+        "heading": heading,
+        "subHeading": sub_heading,
+        "follow_up": follow_up,
+        "type": "paragraph",
+        "value": message,
+    }
+
+
 def _response_oip_catalog_missing() -> dict[str, Any]:
     return {
-        "response": OIP_CATALOG_MISSING_MESSAGE,
+        "response": _paragraph_response(
+            OIP_CATALOG_MISSING_MESSAGE,
+            heading="OIP Catalog Missing",
+            sub_heading="The OIP catalog is not available for query routing.",
+            follow_up="Would you like to use Salesforce data source instead?",
+        ),
         "needs_database_choice": False,
         "resolved_data_source": ds.OIP,
         "error": "oip_catalog_missing",
@@ -140,10 +161,11 @@ class AgentService:
                 pending_nl_query_by_session.pop(session_id, None)
             else:
                 return {
-                    "response": (
-                        "I still need to know which database to use for your last question.\n\n"
-                        "Reply **Salesforce** or **OIP**, or send the same question again "
-                        'with `"data_source": "salesforce"` or `"data_source": "oip"` in the request body.'
+                    "response": _paragraph_response(
+                        "I still need to know which database to use for your last question.",
+                        heading="Database Selection Required",
+                        sub_heading="Please choose the source before I continue.",
+                        follow_up="Should I use Salesforce or OIP for this request?",
                     ),
                     "needs_database_choice": True,
                     "resolved_data_source": None,
@@ -183,7 +205,12 @@ class AgentService:
             if token == "clarify":
                 pending_nl_query_by_session[session_id] = query_for_llm
                 return {
-                    "response": clarification_message(),
+                    "response": _paragraph_response(
+                        clarification_message(),
+                        heading="Need Clarification",
+                        sub_heading="I need a data source selection to continue.",
+                        follow_up="Do you want me to use Salesforce or OIP?",
+                    ),
                     "needs_database_choice": True,
                     "resolved_data_source": None,
                 }
@@ -191,9 +218,11 @@ class AgentService:
 
         if routed == ds.OIP and not oip_query_engine_configured():
             return {
-                "response": (
-                    "OIP routing was chosen but **`DB_URL_OIP`** is not configured. "
-                    "Set the connection string on the server or choose Salesforce."
+                "response": _paragraph_response(
+                    "OIP routing was chosen but DB_URL_OIP is not configured.",
+                    heading="OIP Not Configured",
+                    sub_heading="The OIP database connection is currently unavailable.",
+                    follow_up="Would you like to run this on Salesforce instead?",
                 ),
                 "needs_database_choice": False,
                 "resolved_data_source": None,
@@ -246,7 +275,12 @@ class AgentService:
 
         if not ctx:
             return {
-                "response": "Schema catalogue unavailable for routing.",
+                "response": _paragraph_response(
+                    "Schema catalogue unavailable for routing.",
+                    heading="Schema Unavailable",
+                    sub_heading="I could not build the schema context for this request.",
+                    follow_up="Would you like to retry with a different data source?",
+                ),
                 "needs_database_choice": False,
                 "resolved_data_source": routed,
                 "error": "no_schema_context",
@@ -262,7 +296,12 @@ class AgentService:
         sql_text = gen.response.strip()
         if sql_text.upper() == "INVALID_QUERY":
             return {
-                "response": "No search result for this",
+                "response": _paragraph_response(
+                    "No search result for this",
+                    heading="No Results",
+                    sub_heading="I could not find matching records for this request.",
+                    follow_up="Would you like to adjust filters or keywords?",
+                ),
                 "needs_database_choice": False,
                 "resolved_data_source": routed,
             }
@@ -276,20 +315,25 @@ class AgentService:
         )
         if raw is None:
             return {
-                "response": "No search result for this",
+                "response": _paragraph_response(
+                    "No search result for this",
+                    heading="No Results",
+                    sub_heading="The query did not return a usable dataset.",
+                    follow_up="Would you like me to try a narrower or broader version?",
+                ),
                 "needs_database_choice": False,
                 "resolved_data_source": routed,
             }
 
         serialized = [dict(row) for row in raw]
 
-        html = helpers.generate_normalized_llm_response(
+        formatted_response = helpers.generate_normalized_llm_response(
             serialized, query_for_llm, last_context
         )
         self._save_to_context(session_id, query_for_llm, serialized)
 
         return {
-            "response": html,
+            "response": formatted_response,
             "needs_database_choice": False,
             "resolved_data_source": routed,
         }

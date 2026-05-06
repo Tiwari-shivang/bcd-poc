@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Any, Optional
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -33,7 +33,7 @@ class AgentChatRequest(BaseModel):
 
 
 class AgentChatResponse(BaseModel):
-    response: str
+    response: Any
     needs_database_choice: bool = False
     resolved_data_source: Optional[str] = None
     error: Optional[str] = None

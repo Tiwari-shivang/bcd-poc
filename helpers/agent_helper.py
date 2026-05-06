@@ -197,6 +197,108 @@ def _strip_markdown_fences(text: str) -> str:
     return stripped.strip()
 
 
+def _default_json_response(user_query: str, row_count: int, value: str | None = None) -> dict:
+    heading = "No Results" if row_count == 0 else "Response"
+    topic = (user_query or "request").strip()
+    topic = topic[:120] if topic else "request"
+    sub_heading = (
+        f"No matching records were found for: {topic}."
+        if row_count == 0
+        else f"Returned {row_count} record(s) for: {topic}."
+    )
+    follow_up = (
+        "Would you like to refine the filters and try again?"
+        if row_count == 0
+        else "Would you like me to drill down into a specific field?"
+    )
+    return {
+        "heading": heading,
+        "subHeading": sub_heading,
+        "follow_up": follow_up,
+        "type": "paragraph",
+        "value": value or sub_heading,
+    }
+
+
+def _coerce_response_shape(payload: dict, *, row_count: int, user_query: str) -> dict:
+    out = dict(payload)
+    out["heading"] = str(out.get("heading") or "Response")
+    out["subHeading"] = str(out.get("subHeading") or "Here is what I found.")
+    out["follow_up"] = str(
+        out.get("follow_up")
+        or (
+            "Would you like the next 15 records for this list?"
+            if out.get("type") == "table" and row_count == 15
+            else "Would you like me to narrow this down further?"
+        )
+    )
+
+    kind = str(out.get("type") or "paragraph").lower()
+    if kind not in {"paragraph", "table", "card"}:
+        kind = "paragraph"
+    out["type"] = kind
+
+    if kind == "paragraph":
+        out = {
+            "heading": out["heading"],
+            "subHeading": out["subHeading"],
+            "follow_up": out["follow_up"],
+            "type": "paragraph",
+            "value": str(out.get("value") or out["subHeading"]),
+        }
+        return out
+
+    if kind == "table":
+        header = out.get("header")
+        body = out.get("body")
+        if not isinstance(header, list):
+            header = []
+        header = [str(h) for h in header]
+        if not isinstance(body, list):
+            body = []
+
+        normalized_body: list[list] = []
+        for row in body:
+            if isinstance(row, list):
+                normalized_body.append(row)
+            elif isinstance(row, dict):
+                if not header:
+                    header = [str(k) for k in row.keys()]
+                normalized_body.append([row.get(col) for col in header])
+
+        out = {
+            "heading": out["heading"],
+            "subHeading": out["subHeading"],
+            "follow_up": out["follow_up"],
+            "type": "table",
+            "header": header,
+            "body": normalized_body,
+        }
+        return out
+
+    # card
+    headers = out.get("headers")
+    normalized_headers: list[dict] = []
+    if isinstance(headers, list):
+        for item in headers:
+            if isinstance(item, dict):
+                normalized_headers.append(
+                    {
+                        "key": str(item.get("key", "")),
+                        "value": item.get("value", "—"),
+                    }
+                )
+
+    out = {
+        "heading": out["heading"],
+        "subHeading": out["subHeading"],
+        "follow_up": out["follow_up"],
+        "type": "card",
+        "headers": normalized_headers,
+    }
+    return out
+
+
 def generate_normalized_llm_response(data, user_query, last_context: list | None = None):
     # Compute an unambiguous row count so the renderer can never confuse a
     # populated result with an empty one. Mirrored in the prompt as a hard rule.
@@ -234,7 +336,16 @@ def generate_normalized_llm_response(data, user_query, last_context: list | None
             },
         ],
     )
-    return _strip_markdown_fences(response.choices[0].message.content)
+    raw = _strip_markdown_fences(response.choices[0].message.content or "")
+    try:
+        parsed = json.loads(raw)
+    except json.JSONDecodeError:
+        return _default_json_response(user_query, row_count, value=raw or None)
+
+    if not isinstance(parsed, dict):
+        return _default_json_response(user_query, row_count)
+
+    return _coerce_response_shape(parsed, row_count=row_count, user_query=user_query)
 
 def get_insights_salesforce(content):
     insights_prompt = prompts.get_insights_salesforce_prompt(content)

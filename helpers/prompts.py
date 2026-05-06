@@ -14,295 +14,86 @@ def get_natural_lang_prmpt(
                 f"    Data shown : {turn.get('agent_response', '')}"
             )
         history_block = (
-            "### CONVERSATION HISTORY (for context only — do NOT re-render or duplicate past turns):\n"
+            "### CONVERSATION HISTORY (for context only):\n"
             + "\n".join(history_lines)
             + "\n"
         )
     else:
         history_block = ""
 
-    # Authoritative row-count signal so the model cannot misclassify a
-    # populated result as empty.
     row_count_text = "unknown" if row_count is None else str(row_count)
 
     prompt = f"""
-You are a senior UI data presenter. Your job is to convert the executed SQL query response (provided as JSON) into a single, well-formed, good-looking HTML page.
+You are a senior data presentation assistant.
+Convert the provided executed-result JSON into a high-quality RESPONSE JSON object.
 
 {history_block}
-### INPUT CONTEXT (DO NOT ECHO VERBATIM):
-1. User request (natural language): {user_query}
+### INPUT CONTEXT
+1. User request: {user_query}
 2. Result row count (authoritative): {row_count_text}
-3. Executed SQL response (JSON):
+3. Executed response data (JSON):
 {raw_data}
 
-### CRITICAL OUTPUT RULES (NON-NEGOTIABLE):
-- Output MUST be **ONLY raw HTML**. Absolutely NO markdown, NO backticks, NO code fences (` ``` ` or ` ```html `), NO explanations, NO labels, NO leading or trailing text of any kind.
-- The very first character of your response MUST be `<` (the start of `<!doctype html>`). Any other character is a violation.
-- The very last character of your response MUST be `>` (the closing `</html>`). Any other character is a violation.
-- Output MUST be **valid, well-formed HTML** with correct opening/closing tags and **no syntax errors**.
-- Output MUST be a **single complete HTML document** starting with `<!doctype html>` and containing `<html>`, `<head>`, and `<body>`.
-- Do NOT mention implementation details like "SQL", "query", "rows", "JSON", "database", or "raw_data" anywhere in the HTML.
-- Use ONLY information present in the provided JSON. Do NOT invent or infer values.
+### OUTPUT FORMAT (STRICT)
+Return ONLY valid JSON object. No markdown. No commentary.
 
-### RESULT-COUNT CONTRACT (HARD RULE):
-- Treat field 2 ("Result row count") as the SINGLE SOURCE OF TRUTH about emptiness.
-- If row count is `0`: render the "No results found" empty-state.
-- If row count is `>= 1`: you are STRICTLY FORBIDDEN from rendering "No results", "No data", or any equivalent empty-state. You MUST render the data from the JSON, even if the JSON contains only one row or one field.
-- A non-empty JSON array (e.g. `[{{"agreement_name": "Infosys Consulting Agreement"}}]`) is NEVER empty. One row IS data — render it as a table with one row.
+Top-level keys are mandatory in every response:
+- "heading": string
+- "subHeading": string
+- "follow_up": string
+- "type": one of "paragraph", "table", "card"
 
-### RENDERING REQUIREMENTS — CHAT-MESSAGE FRIENDLY:
-This output is going to be embedded inside a chat message bubble in a web
-app. It is NOT a standalone dashboard page. Style it like an elegant,
-self-contained mini-card a chat assistant would attach to its reply.
+Type-specific payload:
+1) If type = "paragraph"
+   - Include only one extra key: "value" (string paragraph).
+   - Do not include "header", "body", or "headers".
 
-- Create a clean, modern layout with inline CSS inside `<style>` (no
-  external assets, no scripts, no fonts loaded from the network).
-- Layout & sizing (chat-friendly):
-  - The OUTERMOST visible element inside `<body>` MUST be a single
-    container `<section class="chat-card">` (or equivalent) that wraps
-    title + summary + data. This container is the "card".
-  - The card MUST be width-flexible: `width: 100%; max-width: 500px;`
-    and `box-sizing: border-box;`.
-  - The card MUST NOT have any visible border. Keep it clean, with
-    `border: none;` and modest interior padding (around `12px 14px`).
-  - Use a soft `box-shadow` (e.g. `0 1px 2px rgba(0,0,0,0.06)`) for a
-    light "card" feel. Keep it minimal — this is a chat bubble, not a
-    landing page.
-  - `body` should have `margin: 0; padding: 0;` and use a system font
-    stack (e.g. `font-family: -apple-system, BlinkMacSystemFont,
-    "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;`).
-  - Do NOT add page-level chrome: no full-screen headers, no sticky
-    headers, no fixed positioning, no scroll-locking, no banners.
-  - Spacing inside the card should be tight and balanced — title,
-    summary, and data each visually distinct but compact.
-- Typography and alignment are STRICT:
-  - Every font size MUST be exactly `14px` — set globally with
-    `*, *::before, *::after {{ font-size: 14px !important; }}` so
-    browser UA defaults on headings (h1–h6), pre, code, etc. cannot
-    override it.
-  - The visible title heading inside the card MUST also be `14px`.
-    You MAY use `font-weight: 600` or `bold` to give it weight, but
-    `font-size` MUST stay `14px`.
-  - The `<title>` tag inside `<head>` must contain a concise, human-
-    readable title matching the card's visible heading.
-  - All text MUST be left-aligned, EXCEPT table header cells (`th`) which
-    must be right-aligned.
-  - Use comfortable `line-height` (around 1.45) for readable prose.
-- Color rule is STRICT:
-  - The default page/card background colour is white (`#ffffff`) or
-    transparent so the chat container shows through naturally.
-  - Do NOT apply any background colour to headings or table headers.
-  - Keep styling minimal and ChatGPT-like: clean white surface, subtle
-    text hierarchy, no heavy decorative color blocks.
-- Include a clear title inside the card (derived from the user request),
-  but do not repeat the entire user request verbatim.
-- The HTML must be formed according to the JSON structure:
+2) If type = "table"
+   - Include:
+     - "header": array of strings (column names)
+     - "body": array of rows, where each row is an array of cell values
+   - Do not include "value" or "headers".
 
-### PAGE STRUCTURE (STRICT ORDER INSIDE `<body>`):
-The body MUST be structured in EXACTLY this top-to-bottom order:
-  1. The page title heading (e.g. `<h1>` styled to 14px / bold).
-  2. A SUMMARY PARAGRAPH section (rules below). Skip ONLY when row count = 0.
-  3. The DATA section (table / details card / value card / empty-state).
-  4. A FOLLOW-UP QUESTION section (`<section class="follow-up"><p>...</p></section>`).
-No additional sections, footers, or decorative blocks are allowed.
+3) If type = "card"
+   - Include:
+     - "headers": array of objects with keys: "key", "value"
+       Example: [{{"key":"Agreement Name","value":"ABC"}}]
+   - Do not include "value", "header", or "body".
 
-### FOLLOW-UP QUESTION RULES (MANDATORY):
-- Always render exactly one concise follow-up question at the end.
-- Follow-up must be context-aware and relevant to the user's request/data.
-- Special pagination rule:
-  - If and ONLY if the rendered DATA section is a TABLE and Result row count is exactly `15`,
-    the follow-up MUST ask whether the user wants the next 15 records for the same result set.
-    Example style: "Would you like the next 15 records for this list?"
-  - If row count is not `15`, OR the DATA section is not a table (single-object card, scalar, empty state),
-    DO NOT ask for "next 15". Ask a different relevant next-step question based on current context.
-- Do not mention implementation terms (SQL/query/JSON/database/raw_data).
-- Keep it to one sentence, natural and helpful.
+### DATA SHAPE MAPPING
+- row count = 0 -> type = "paragraph", with a concise no-results message in "value".
+- list/array with 2+ objects -> type = "table".
+- single object OR list with exactly 1 object -> type = "card".
+- scalar -> type = "paragraph".
 
-### SUMMARY PARAGRAPH (NON-EMPTY RESULTS ONLY):
-Write a warm, natural, conversational paragraph that introduces the data
-below it — the kind of sentence a helpful colleague would say when
-handing over a small report in a chat. The user is reading this in a chat
-message, NOT a dashboard, so it must feel like a human reply.
+### QUALITY RULES
+- Preserve answer quality: clear, helpful, concise, and grounded in data.
+- Never mention SQL/query/JSON/database/raw_data.
+- Remove useless surrogate identifiers from visible output where possible:
+  columns named `id`, ending `_id`, UUID-like tokens, opaque linkage keys.
+- Humanize labels (snake_case to readable words).
+- Null -> "-", booleans -> "Yes"/"No".
 
-Mandatory rules:
-- Wrap it in `<section class="summary"> ... </section>` placed BEFORE the
-  data section.
-- Use 1 to 3 sentences total. No bullet lists, no headings, no emojis.
-- Address the reader naturally. You may begin with phrases such as
-  "Here are…", "I found…", "Below are…", "These are the…". Do NOT begin
-  with stiff report language like "The following table shows…" or
-  "The result set contains…".
-- It MUST be 100% data-grounded: only state facts derivable from the
-  JSON. NEVER invent names, counts, dates, statuses, regions, or trends
-  that are not present in the data.
-- Where natural, weave in:
-    * the total number of records shown (must equal the Result row count),
-    * what they are about (entities inferred from JSON keys — e.g.
-      agreements, owners, countries, solutions),
-    * one obvious, trivially-true observation, such as:
-        - all rows share a common value (e.g. all are status
-          "Implemented", all from the same region, all owned by the
-          same person),
-        - the data is a single record vs. a list,
-        - the date range present in the data.
-- It MUST NOT speculate, recommend, predict, or editorialise. No phrases
-  like "this suggests", "you should", "likely", "approximately" unless
-  the approximation is literally in the data.
-- It MUST NOT mention "SQL", "query", "rows", "JSON", "database",
-  "raw_data", or any other implementation term.
-- Tone: friendly, helpful, professional — like a colleague's chat reply.
-  Keep it short. Avoid corporate jargon and filler.
-- Typography rules apply: 14px font, left-aligned. Do NOT use background
-  tint behind summary or heading areas.
+### FOLLOW-UP RULES (MANDATORY)
+- Always include one relevant follow-up question in "follow_up".
+- If type = "table" AND row count = 15:
+  follow_up MUST ask whether user wants next 15 records for same list.
+- Otherwise ask a context-aware next step question (not "next 15").
 
-Good example (adapt to actual data — never copy verbatim):
-  <section class="summary">
-    <p>Here are the 6 active agreements owned by Rahul Mehta. They are all
-       currently within their effective period and span the APAC and EMEA
-       regions.</p>
-  </section>
-
-Bad example (do NOT do this):
-  <section class="summary">
-    <p>The result set contains 6 records of active agreements with their
-       respective fields as shown.</p>
-  </section>
-
-### UUID / ID-LIKE VALUES (DEFENSIVE SAFETY NET — CHAT VIEW):
-Sometimes JSON values expose internal surrogate identifiers that are meaningless in chat:
-
-- Columns named `id`, ending with `_id`, or resembling bridge keys (`sf_id`, `case_safe_id` when opaque)
-  or standard UUID shapes (8-4-4-4-12 hex). **Never render these** unless the user explicitly asked for IDs.
-
-- Very short alphanumeric **placeholder / surrogate geography codes**—single letter + digits (e.g. `c1`, `t2`),
-  or ≤4-character opaque tokens in columns whose header clearly refers to geography or named entities—are **NOT acceptable**
-  substitutes for joined country/account names.
-
-- Omit such columns entirely. Never mention them in the summary. Visible cells must carry **readable business words**
-  produced by upstream SQL joins (typically `…name` columns for countries and solutions).
-
-If removing every surrogate column exhausts usable fields but row_count ≥ 1, render a factual one-line acknowledgement
-instead of surrogate codes (e.g. that records exist but descriptive labels were not supplied in the dataset).
-
-### DATA-SHAPE PRECEDENCE (READ BEFORE PICKING A RENDERING BRANCH):
-Decide how to render the data using EXACTLY this priority order. The first
-matching rule wins — do not consider lower rules once one matches.
-
-1. Result row count = 0
-   → Use the "Empty state" branch.
-2. Data is a list / JSON array AND it contains EXACTLY ONE object
-   (i.e. row count = 1 and the JSON is a list with one element)
-   → DO NOT render a 1-row table. Render the SINGLE OBJECT branch
-     (details card / `<dl>` layout) using that one object.
-   → This is a HARD RULE: a list of length 1 is ALWAYS rendered as a card.
-3. Data is a list / JSON array with 2 OR MORE objects
-   → Use the "list of objects" branch (table).
-4. Data is a single object (not wrapped in an array)
-   → Use the "single object" branch (details card).
-5. Data is a scalar (string / number / boolean)
-   → Use the "scalar" branch (single value card).
-
-#### Empty state (ONLY if Result row count = 0):
-- Render an elegant "No results found" state with a brief, user-friendly message and no technical terms.
-- Do NOT use this branch when row count >= 1, regardless of how minimal the data looks.
-- In this branch, the SUMMARY PARAGRAPH section is OMITTED entirely.
-
-#### If data is a list of objects (typical result set):
-- This branch applies ONLY when the list contains 2 OR MORE objects.
-- A 1-element list MUST go to the "single object" branch instead — see
-  the DATA-SHAPE PRECEDENCE rule above.
-- Render a compact, chat-friendly table inside the card.
-- Wrap the `<table>` in a `<div style="overflow-x:auto">` so wide tables
-  scroll horizontally inside the chat bubble instead of overflowing it.
-- Use `border-collapse: collapse;` and bottom-only rules:
-  - No outer table border.
-  - No left/right/top borders on table cells.
-  - Keep only bottom border separators (`border-bottom`) for rows/cells.
-  - Table header cells must be bold text only, with NO border and NO background color.
-  - Keep a single subtle bottom border for the whole table.
-  - Padding around `8px 10px` per cell.
-  - Apply `white-space: nowrap;` to both header and body cells so each cell stays on one line.
-- Table columns MUST be derived from the union of keys across objects,
-  preserving a stable order: key order from the first object, then any
-  new keys appended later.
-- BEFORE choosing the columns, apply the UUID / ID-LIKE safety net rule
-  above — drop columns whose name is `id`, ends with `_id`, or whose
-  every value matches the UUID pattern.
-- Header labels MUST be human-friendly (e.g., `leaves_count` → `Leaves
-  Count`, `agreement_end_date` → `Agreement End Date`). Header cells
-  must use bold text (`font-weight: 600` or `700`) with no border and
-  no background color, and must be right-aligned (`text-align: right`).
-  Do NOT use sticky positioning.
-- Cell values:
-  - `null` / missing: show an em dash (—).
-  - booleans: show `Yes` / `No`.
-  - dates / timestamps: render in a friendly form (e.g.
-    `Apr 22, 2026`) when the underlying value is unambiguously a
-    calendar date; otherwise leave as-is.
-  - arrays/objects: render as compact pretty JSON inside `<pre>` with
-    safe wrapping (`white-space: pre-wrap; word-break: break-word;`).
-- Subtle UX touches (kept minimal for a chat context):
-  - Optional very-light zebra striping on alternate rows.
-  - A subtle hover row highlight.
-  - Right-align numeric columns when obvious.
-  - DO NOT use sticky table headers, fixed positioning, or page-level
-    scrolling — a chat bubble is not a dashboard.
-
-#### If data is a single object (this also covers a 1-element array):
-- Render a **premium single-record "details" card** — not a sparse `<dl>`. This is the
-  default for **row count = 1**; it must feel intentional, scannable, and calm (senior product
-  designer quality) while staying inside the chat bubble.
-
-**Layout & structure (mandatory):**
-- After the normal `<h1>` page title and optional `<section class="summary">`, add a
-  dedicated inner wrapper: `<div class="detail-sheet" role="region" aria-label="Record details">`.
-- Inside `detail-sheet`, group fields into **2–4 logical sections** using
-  `<section class="detail-section">` with a short heading each:
-  `<h2 class="detail-section-title">…</h2>` (still **14px** via global rule; use
-  `font-weight: 600` and a thin bottom border or extra `margin-top` / `padding-top` to
-  separate sections — no larger font sizes).
-- Within each section, use a **responsive key/value grid**:
-  - Preferred: CSS `display: grid; grid-template-columns: minmax(140px, 38%) 1fr; gap: 6px 14px;`
-    with each row as `<div class="kv-row">` containing
-    `<span class="kv-label">` (muted colour `#5a6b7a`, `font-weight: 500`) and
-    `<span class="kv-value">` (`font-weight: 400`, word-break for long strings).
-  - Alternative equivalent: a styled `<dl class="kv-grid">` with `<dt>` / `<dd>` per row,
-    same grid alignment. Do **not** use a one-column bullet list.
-
-**Visual polish (still chat-safe):**
-- Keep non-table content borderless (`border: none` on wrappers/sections/cards).
-- Use spacing and typography (not borders/background fills) to create structure.
-- Rows: optional zebra using **only** alternating white / `#f5fafe` (still in the `#8FC9FF`
-  family) for `.kv-row` — keep contrast low.
-- **Primary value emphasis**: if exactly one scalar field is obviously the main answer (e.g.
-  a total, a title, status), duplicate it once in summary or give that row `.kv-value--primary`
-  with `font-weight: 600` — do not inflate font size above 14px.
-
-**Grouping heuristics (best effort from keys):**
-- Identity / naming fields first section; dates second; enums/status third;
-  relational / attribution last — only when inferable from key names.
-
-**Data rules unchanged:**
-- If the input was a list with exactly one object, unwrap it and render that object —
-  never a `<table>` with one body row.
-- Human-friendly labels (`snake_case` → Title Case).
-- UUID / surrogate / `_id` / opaque code columns remain **omitted entirely** per safety rules.
-- Value formatting same as tables: null → — , booleans → Yes / No , dates readable,
-  nested JSON → compact `<pre>` with wrap.
-
-#### If data is a scalar (string/number/bool):
-- Render a single prominent value inside the card with a small caption
-  above (derived from the user question) and the value below in
-  `font-weight: 600`. Keep it compact and chat-bubble sized.
-
-### SAFETY & HTML HYGIENE:
-- Escape content that could contain `<`, `>`, `&` so the HTML does not break (treat all values as text).
-- Do NOT use scripts. Do NOT use iframes. Do NOT include external links unless they are present in the data.
-
-### OUTPUT:
-- Return ONLY the final HTML document.
+### SUMMARY TEXT RULES
+- "heading": short, specific title for the answer.
+- "subHeading": must be descriptive, genuine, and directly grounded in the returned data.
+- It must NOT be generic filler like "Here is what I found" or "Results are shown below".
+- Build it from actual response facts where possible, for example:
+  - record count (`row_count`),
+  - dominant entity/topic inferred from keys,
+  - an obvious concrete qualifier (status/region/date span) only if present.
+- Keep it 1 sentence (preferred) or max 2 short sentences.
+- Do not invent values or trends that are not in the data.
+- "paragraph.value" (or card/table context) must be natural and business-readable.
 """
     return prompt
+
 
 def get_query_prompt(
     context,
