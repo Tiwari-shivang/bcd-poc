@@ -61,7 +61,7 @@ self-contained mini-card a chat assistant would attach to its reply.
   - The OUTERMOST visible element inside `<body>` MUST be a single
     container `<section class="chat-card">` (or equivalent) that wraps
     title + summary + data. This container is the "card".
-  - The card MUST be width-flexible: `width: 100%; max-width: 720px;`
+  - The card MUST be width-flexible: `width: 100%; max-width: 500px;`
     and `box-sizing: border-box;`.
   - The card MUST NOT have any visible border. Keep it clean, with
     `border: none;` and modest interior padding (around `12px 14px`).
@@ -85,7 +85,8 @@ self-contained mini-card a chat assistant would attach to its reply.
     `font-size` MUST stay `14px`.
   - The `<title>` tag inside `<head>` must contain a concise, human-
     readable title matching the card's visible heading.
-  - All text MUST be left-aligned.
+  - All text MUST be left-aligned, EXCEPT table header cells (`th`) which
+    must be right-aligned.
   - Use comfortable `line-height` (around 1.45) for readable prose.
 - Color rule is STRICT:
   - The default page/card background colour is white (`#ffffff`) or
@@ -102,7 +103,20 @@ The body MUST be structured in EXACTLY this top-to-bottom order:
   1. The page title heading (e.g. `<h1>` styled to 14px / bold).
   2. A SUMMARY PARAGRAPH section (rules below). Skip ONLY when row count = 0.
   3. The DATA section (table / details card / value card / empty-state).
+  4. A FOLLOW-UP QUESTION section (`<section class="follow-up"><p>...</p></section>`).
 No additional sections, footers, or decorative blocks are allowed.
+
+### FOLLOW-UP QUESTION RULES (MANDATORY):
+- Always render exactly one concise follow-up question at the end.
+- Follow-up must be context-aware and relevant to the user's request/data.
+- Special pagination rule:
+  - If and ONLY if the rendered DATA section is a TABLE and Result row count is exactly `15`,
+    the follow-up MUST ask whether the user wants the next 15 records for the same result set.
+    Example style: "Would you like the next 15 records for this list?"
+  - If row count is not `15`, OR the DATA section is not a table (single-object card, scalar, empty state),
+    DO NOT ask for "next 15". Ask a different relevant next-step question based on current context.
+- Do not mention implementation terms (SQL/query/JSON/database/raw_data).
+- Keep it to one sentence, natural and helpful.
 
 ### SUMMARY PARAGRAPH (NON-EMPTY RESULTS ONLY):
 Write a warm, natural, conversational paragraph that introduces the data
@@ -207,6 +221,7 @@ matching rule wins — do not consider lower rules once one matches.
   - Table header cells must be bold text only, with NO border and NO background color.
   - Keep a single subtle bottom border for the whole table.
   - Padding around `8px 10px` per cell.
+  - Apply `white-space: nowrap;` to both header and body cells so each cell stays on one line.
 - Table columns MUST be derived from the union of keys across objects,
   preserving a stable order: key order from the first object, then any
   new keys appended later.
@@ -216,7 +231,8 @@ matching rule wins — do not consider lower rules once one matches.
 - Header labels MUST be human-friendly (e.g., `leaves_count` → `Leaves
   Count`, `agreement_end_date` → `Agreement End Date`). Header cells
   must use bold text (`font-weight: 600` or `700`) with no border and
-  no background color. Do NOT use sticky positioning.
+  no background color, and must be right-aligned (`text-align: right`).
+  Do NOT use sticky positioning.
 - Cell values:
   - `null` / missing: show an em dash (—).
   - booleans: show `Yes` / `No`.
