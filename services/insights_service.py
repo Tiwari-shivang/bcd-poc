@@ -37,6 +37,15 @@ CHART_CONFIG_KEYS_BY_TYPE = {
 }
 
 
+def _safe_float(value: object) -> float | None:
+    if value is None:
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
 @lru_cache(maxsize=4)
 def _load_schema(schema_path: str) -> list[dict]:
     with Path(schema_path).open("r", encoding="utf-8") as schema_file:
@@ -384,6 +393,8 @@ class InsightsService:
                 rows,
                 schema_path=schema_path,
             )
+            if base["chart_type"] == "pie":
+                self._enrich_pie_chart_legends(base)
             base["error"] = None
         except ValueError as exc:
             base["execution_status"] = "error"
@@ -392,6 +403,48 @@ class InsightsService:
             base["error"] = str(exc)
 
         return base
+
+    def _enrich_pie_chart_legends(self, chart_payload: dict) -> None:
+        """Attach explicit legend metadata so frontend can render static legends
+        without relying on hover tooltips."""
+        config = chart_payload.get("chart_config") or {}
+        rows = chart_payload.get("data") or []
+
+        name_key = config.get("name_key")
+        value_key = config.get("value_key")
+        if not isinstance(name_key, str) or not isinstance(value_key, str):
+            return
+
+        # Aggregate by category to keep legends stable if SQL returns duplicates.
+        totals: dict[str, float] = {}
+        grand_total = 0.0
+        for row in rows:
+            if not isinstance(row, dict):
+                continue
+            label = str(row.get(name_key, "")).strip()
+            if not label:
+                continue
+            numeric_value = _safe_float(row.get(value_key))
+            if numeric_value is None:
+                continue
+            totals[label] = totals.get(label, 0.0) + numeric_value
+            grand_total += numeric_value
+
+        legend_items: list[dict[str, object]] = []
+        for label, total in totals.items():
+            percent = (total / grand_total * 100.0) if grand_total > 0 else 0.0
+            legend_items.append(
+                {
+                    "label": label,
+                    "value": total,
+                    "percentage": round(percent, 2),
+                }
+            )
+
+        config["show_legend"] = True
+        config["legend_key"] = name_key
+        chart_payload["chart_config"] = config
+        chart_payload["legend"] = legend_items
 
     async def _get_insights_for_source(
         self,

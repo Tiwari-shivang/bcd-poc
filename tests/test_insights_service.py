@@ -161,3 +161,44 @@ def test_get_oip_charts_requires_configured_db():
 def test_resolved_output_key_uses_display_column():
     assert _resolved_output_key("account_id", "name") == "account_name"
     assert _resolved_output_key("gcn_id", "client_name") == "gcn_client_name"
+
+
+def test_enrich_pie_chart_legends_adds_static_legend_metadata():
+    service = InsightsService()
+    payload = {
+        "chart_type": "pie",
+        "chart_config": {"name_key": "contract_type", "value_key": "contract_count"},
+        "data": [
+            {"contract_type": "NDA", "contract_count": 4},
+            {"contract_type": "MSA", "contract_count": 6},
+        ],
+    }
+
+    service._enrich_pie_chart_legends(payload)
+
+    assert payload["chart_config"]["show_legend"] is True
+    assert payload["chart_config"]["legend_key"] == "contract_type"
+    assert payload["legend"] == [
+        {"label": "NDA", "value": 4.0, "percentage": 40.0},
+        {"label": "MSA", "value": 6.0, "percentage": 60.0},
+    ]
+
+
+def test_enrich_pie_chart_legends_aggregates_duplicate_labels():
+    service = InsightsService()
+    payload = {
+        "chart_type": "pie",
+        "chart_config": {"name_key": "segment", "value_key": "count"},
+        "data": [
+            {"segment": "Enterprise", "count": 2},
+            {"segment": "Enterprise", "count": 3},
+            {"segment": "SMB", "count": 5},
+        ],
+    }
+
+    service._enrich_pie_chart_legends(payload)
+
+    assert payload["legend"] == [
+        {"label": "Enterprise", "value": 5.0, "percentage": 50.0},
+        {"label": "SMB", "value": 5.0, "percentage": 50.0},
+    ]
