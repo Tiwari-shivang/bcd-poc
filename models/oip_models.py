@@ -1,15 +1,15 @@
 from database import OIPBase
-from sqlalchemy import Boolean, CHAR, Column, ForeignKey, TEXT, TIMESTAMP, VARCHAR
+from sqlalchemy import CHAR, Column, ForeignKey, INTEGER, TEXT, TIMESTAMP, VARCHAR
 
 
 class OIPAccountModel(OIPBase):
     __tablename__ = "accounts"
-    id = Column(CHAR(36), primary_key=True)
-    sf_id = Column(VARCHAR(255))
+    id = Column(INTEGER, primary_key=True)
+    sf_id = Column(VARCHAR(18))
     name = Column(VARCHAR(255))
     address = Column(TEXT)
-    created_at = Column(TIMESTAMP)
-    updated_at = Column(TIMESTAMP)
+    created_at = Column(VARCHAR(20))
+    updated_at = Column(VARCHAR(20))
 
 
 class OIPCustomerModel(OIPBase):
@@ -34,7 +34,7 @@ class OIPOpportunityModel(OIPBase):
     record_type = Column(VARCHAR(100))
     isd_status = Column(VARCHAR(100))
     created_at = Column(TIMESTAMP)
-    account_id = Column(CHAR(36), ForeignKey("accounts.id"))
+    account_id = Column(INTEGER, ForeignKey("accounts.id"))
     customer_id = Column(CHAR(36), ForeignKey("customers.id"))
 
 
@@ -72,7 +72,6 @@ class OIPProjectModel(OIPBase):
 class OIPDecisionSourceModel(OIPBase):
     __tablename__ = "decision_sources"
     id = Column(CHAR(36), primary_key=True)
-    external_id = Column(VARCHAR(255))
     case_safe_id = Column(VARCHAR(255))
     created_at = Column(TIMESTAMP)
 
@@ -88,7 +87,7 @@ class OIPServiceConfigModel(OIPBase):
 class OIPSolutionModel(OIPBase):
     __tablename__ = "solutions"
     id = Column(CHAR(36), primary_key=True)
-    sf_id = Column(VARCHAR(255))
+    tool_service_sf_id = Column(VARCHAR(255))
     program_solution_case_safe_id = Column(VARCHAR(255))
     tool_or_service = Column(VARCHAR(255))
     product_type_id = Column(VARCHAR(255))
@@ -97,12 +96,10 @@ class OIPSolutionModel(OIPBase):
     solution_status = Column(VARCHAR(100))
     record_type = Column(VARCHAR(100))
     status_id = Column(VARCHAR(255))
-    current_status = Column(VARCHAR(100))
     final_status = Column(VARCHAR(100))
-    created_by = Column(VARCHAR(255))
-    enabled = Column(Boolean)
     created_at = Column(TIMESTAMP)
     updated_at = Column(TIMESTAMP)
+    account_id = Column(INTEGER, ForeignKey("accounts.id"))
     opportunity_id = Column(CHAR(36), ForeignKey("opportunities.id"))
     project_id = Column(CHAR(36), ForeignKey("projects.id"))
     decision_source_id = Column(CHAR(36), ForeignKey("decision_sources.id"))
@@ -115,5 +112,4 @@ class OIPSRQRequestModel(OIPBase):
     id = Column(CHAR(36), primary_key=True)
     srq_number = Column(VARCHAR(255))
     srq_name = Column(VARCHAR(255))
-    solution_id = Column(CHAR(36), ForeignKey("solutions.id"))
-    created_at = Column(TIMESTAMP)
+    service_config_id = Column(CHAR(36), ForeignKey("service_config.id"))
