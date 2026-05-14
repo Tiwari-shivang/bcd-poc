@@ -347,6 +347,22 @@ OI4. **Typical readable path Solutions ↔ ticketing/servicing areas:**
 OI5. **`projects`** multi‑country layouts: JOIN `countries` once per FK you must label
       (`project_country_id`, `traveller_country_id`, etc.), each projecting `countries.name`.
 
+OI6. **Opportunities-to-Countries path is INDIRECT (STRICT).**
+      In OIP schema, `opportunities` has NO direct FK to `countries`.
+      Therefore, for opportunity geography questions, you MUST bridge via `projects`:
+        opportunities.id -> projects.opportunity_id -> projects.project_country_id -> countries.id
+      Optional second geography uses:
+        projects.traveller_country_id -> countries.id
+      NEVER join `countries` using `opportunities.customer_id` or any non-country FK.
+
+OI7. **Hard FK semantic guard (STRICT).**
+      - `opportunities.customer_id` references `customers.id` ONLY.
+      - `opportunities.account_id` references `accounts.id` ONLY.
+      - `projects.country_details_id` references `country_details.id` ONLY.
+      You are FORBIDDEN from cross-joining these keys to unrelated tables.
+      If the requested attribute needs a table that is not directly linked, use the
+      declared bridge path from schema relationships; otherwise return INVALID_QUERY.
+
 -----------------------
 BUSINESS GLOSSARY (MAP USER TERMS TO TABLES/COLUMNS)
 -----------------------
